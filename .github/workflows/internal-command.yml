@@ -1,0 +1,101 @@
+name: Internal Command
+
+run-name: Internal command ${{ inputs.run_key }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      run_key:
+        description: Unique key used by the caller to find this run.
+        required: true
+        type: string
+      command:
+        description: Shell command to run on the self-hosted runner.
+        required: true
+        type: string
+      artifact_paths:
+        description: Comma or newline separated files/directories to return.
+        required: false
+        default: run-output/
+        type: string
+      artifact_budget:
+        description: Maximum artifact payload size, for example 96K or 1M.
+        required: false
+        default: 96K
+        type: string
+
+jobs:
+  run-command:
+    name: Run internal command
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        env:
+          GIT_SSL_NO_VERIFY: "true"
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+
+      - name: Run command
+        id: run-command
+        continue-on-error: true
+        shell: bash
+        env:
+          INTERNAL_COMMAND: ${{ inputs.command }}
+        run: |
+          set -o pipefail
+          mkdir -p run-output
+          {
+            echo "run_key=${{ inputs.run_key }}"
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            echo "workspace=${GITHUB_WORKSPACE}"
+            echo "started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "+ ${INTERNAL_COMMAND}"
+          } | tee run-output/command.log
+
+          bash -lc "${INTERNAL_COMMAND}" 2>&1 | tee -a run-output/command.log
+          status=${PIPESTATUS[0]}
+
+          {
+            echo
+            echo "finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "exit_code=${status}"
+          } | tee -a run-output/command.log
+
+          echo "${status}" > run-output/exit-code.txt
+          exit "${status}"
+
+      - name: Prepare artifact
+        if: always()
+        shell: bash
+        env:
+          ARTIFACT_PATHS: ${{ inputs.artifact_paths }}
+          ARTIFACT_BUDGET: ${{ inputs.artifact_budget }}
+        run: |
+          set -eux
+          python3 scripts/prepare-internal-artifact.py \
+            --paths "${ARTIFACT_PATHS}" \
+            --budget "${ARTIFACT_BUDGET}" \
+            --output run-output/internal-artifact \
+            --log run-output/command.log
+
+      - name: Upload artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        env:
+          NODE_TLS_REJECT_UNAUTHORIZED: "0"
+        with:
+          name: internal-command-${{ inputs.run_key }}
+          path: run-output/internal-artifact/
+          if-no-files-found: error
+
+      - name: Propagate command exit code
+        if: always()
+        shell: bash
+        run: |
+          status="$(cat run-output/exit-code.txt 2>/dev/null || echo 1)"
+          exit "${status}"
