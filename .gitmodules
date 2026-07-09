@@ -3,3 +3,7 @@
 	url = https://gitcode.com/cann/catlass.git
 	branch = master
 	commit = 41bf90da655bba3c66d0acd7e00abe33960ecfd6
+[submodule "vllm"]
+	path = vllm
+	url = https://github.com/vllm-project/vllm.git
+	branch = releases/v0.23.0
