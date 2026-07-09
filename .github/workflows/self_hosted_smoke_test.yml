@@ -1,0 +1,39 @@
+name: Self-hosted Smoke Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  smoke-test:
+    name: Run on self-hosted ARM64 runner
+    runs-on: [self-hosted, Linux, ARM64]
+    timeout-minutes: 10
+
+    steps:
+      - name: Show runner context
+        run: |
+          set -eux
+          echo "runner_name=${RUNNER_NAME}"
+          echo "runner_os=${RUNNER_OS}"
+          echo "runner_arch=${RUNNER_ARCH}"
+          echo "workspace=${GITHUB_WORKSPACE}"
+          uname -a
+          pwd
+
+      - name: Write smoke test artifact
+        run: |
+          set -eux
+          mkdir -p smoke-output
+          {
+            echo "Self-hosted runner smoke test passed."
+            echo "runner_name=${RUNNER_NAME}"
+            echo "runner_os=${RUNNER_OS}"
+            echo "runner_arch=${RUNNER_ARCH}"
+            date -u
+          } > smoke-output/result.txt
+
+      - name: Upload smoke test artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: self-hosted-smoke-output
+          path: smoke-output/
