@@ -1,3 +1,9 @@
+# mysetup
+这个是个人vllm-ascend学习项目
+- 目标：TODO
+- vllm代码路径：/home/maru/project/vllm
+- 运行及配置（必读）：REMOTE_CONFIG.md
+
 # vLLM Ascend Development Guidelines
 
 This document provides instructions for contributors to the vLLM Ascend project. Please read and follow these guidelines to ensure code quality, maintainability, and consistency.

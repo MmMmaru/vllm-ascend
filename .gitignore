@@ -1,3 +1,7 @@
+## myignore
+output/
+
+
 ## vLLM Ascend Ignore
 # VSCode
 .vscode/
