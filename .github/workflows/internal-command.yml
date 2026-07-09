@@ -57,8 +57,10 @@ jobs:
             echo "+ ${INTERNAL_COMMAND}"
           } | tee run-output/command.log
 
+          set +e
           bash -lc "${INTERNAL_COMMAND}" 2>&1 | tee -a run-output/command.log
           status=${PIPESTATUS[0]}
+          set -e
 
           {
             echo
