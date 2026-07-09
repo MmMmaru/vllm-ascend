@@ -103,6 +103,7 @@ set +e
 gh run watch "${run_id}" --repo "${repo}" --exit-status
 watch_status="$?"
 set -e
+script_status="${watch_status}"
 
 mkdir -p "${output_dir}"
 echo "Downloading artifact to ${output_dir}"
@@ -118,6 +119,13 @@ if gh run download "${run_id}" \
     echo "===== command.log ====="
     sed -n '1,240p' "${output_dir}/files/run-output/command.log"
   fi
+
+  if [[ -f "${output_dir}/files/run-output/exit-code.txt" ]]; then
+    remote_status="$(head -n 1 "${output_dir}/files/run-output/exit-code.txt")"
+    if [[ "${remote_status}" =~ ^[0-9]+$ ]]; then
+      script_status="${remote_status}"
+    fi
+  fi
 else
   echo "Artifact download failed. Check the run logs:" >&2
   echo "https://github.com/${repo}/actions/runs/${run_id}" >&2
@@ -131,4 +139,4 @@ conclusion="$(
 )"
 echo "conclusion=${conclusion}"
 
-exit "${watch_status}"
+exit "${script_status}"
