@@ -20,7 +20,7 @@ jobs:
           uname -a
           pwd
 
-      - name: Write smoke test artifact
+      - name: Write smoke test result
         run: |
           set -eux
           mkdir -p smoke-output
@@ -31,9 +31,4 @@ jobs:
             echo "runner_arch=${RUNNER_ARCH}"
             date -u
           } > smoke-output/result.txt
-
-      - name: Upload smoke test artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: self-hosted-smoke-output
-          path: smoke-output/
+          cat smoke-output/result.txt
