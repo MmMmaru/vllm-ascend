@@ -9,6 +9,10 @@ on:
         description: Unique key used by the caller to find this run.
         required: true
         type: string
+      worker:
+        description: Custom label of the self-hosted runner that executes the command.
+        required: true
+        type: string
       command:
         description: Shell command to run on the self-hosted runner.
         required: true
@@ -27,7 +31,7 @@ on:
 jobs:
   run-command:
     name: Run internal command
-    runs-on: [self-hosted, Linux, ARM64]
+    runs-on: [self-hosted, Linux, ARM64, "${{ inputs.worker }}"]
     timeout-minutes: 360
 
     steps:

@@ -4,16 +4,19 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  scripts/remote-run.sh '<command>' ['<artifact paths>'] ['<artifact budget>']
+  scripts/remote-run.sh '<command>' ['<artifact paths>'] ['<artifact budget>'] '<worker label>'
 
 Examples:
-  scripts/remote-run.sh 'uname -a && pwd' 'run-output/' '96K'
-  REMOTE_RUN_REF=main scripts/remote-run.sh 'date -u' 'run-output/' '96K'
+  scripts/remote-run.sh 'uname -a && pwd' 'run-output/' '96K' 'worker-97-4'
+  REMOTE_RUN_REF=main scripts/remote-run.sh 'date -u' 'run-output/' '96K' 'worker-97-4'
+  REMOTE_RUN_WORKER=worker-97-4 scripts/remote-run.sh 'date -u'
 
 Environment:
   REMOTE_RUN_REPO       GitHub repo, for example MmMmaru/vllm-ascend.
   REMOTE_RUN_REF        Git ref to run. Defaults to the current branch.
   REMOTE_RUN_WORKFLOW   Workflow file. Defaults to internal-command.yml.
+  REMOTE_RUN_WORKER     Self-hosted runner label. Used when the fourth
+                        positional argument is omitted.
 EOF
 }
 
@@ -51,6 +54,13 @@ fi
 command_to_run="$1"
 artifact_paths="${2:-run-output/}"
 artifact_budget="${3:-96K}"
+worker="${4:-${REMOTE_RUN_WORKER:-}}"
+
+if [[ -z "${worker}" ]]; then
+  echo "A self-hosted runner label is required as the fourth argument or REMOTE_RUN_WORKER." >&2
+  usage >&2
+  exit 2
+fi
 
 repo="${REMOTE_RUN_REPO:-$(github_repo_from_origin)}"
 ref="${REMOTE_RUN_REF:-$(git branch --show-current)}"
@@ -61,12 +71,14 @@ output_dir="output/${run_key}"
 echo "repo=${repo}"
 echo "ref=${ref}"
 echo "workflow=${workflow}"
+echo "worker=${worker}"
 echo "run_key=${run_key}"
 
 gh workflow run "${workflow}" \
   --repo "${repo}" \
   --ref "${ref}" \
   -f "run_key=${run_key}" \
+  -f "worker=${worker}" \
   -f "command=${command_to_run}" \
   -f "artifact_paths=${artifact_paths}" \
   -f "artifact_budget=${artifact_budget}"
