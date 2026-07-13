@@ -1,4 +1,8 @@
-# 蓝区 Agent 远程驱动绿区 950 Runner
+# 蓝区 Agent 远程驱动绿区服务器
+
+## 目前配置
+xrs_090容器运行在worker-97-44上，使用这个容器。
+权重位置在/mnt/share/weights文件夹中。
 
 ## 背景
 
