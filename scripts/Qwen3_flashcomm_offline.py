@@ -7,6 +7,8 @@
 import asyncio
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, distribution
+from pathlib import Path
 
 
 def configure_environment() -> None:
@@ -23,6 +25,27 @@ def configure_environment() -> None:
 
 configure_environment()
 sys.path[0] = os.getcwd()
+
+
+def configure_source_build_info() -> None:
+    """为源码包补充已安装包生成的构建元数据模块。"""
+    import vllm_ascend
+
+    try:
+        installed_package_path = Path(
+            distribution("vllm-ascend").locate_file("vllm_ascend")
+        )
+    except PackageNotFoundError as error:
+        raise RuntimeError("未找到已安装的 vllm-ascend 构建元数据") from error
+
+    build_info_path = installed_package_path / "_build_info.py"
+    if not build_info_path.is_file():
+        raise RuntimeError(f"缺少 vllm-ascend 构建元数据: {build_info_path}")
+    if str(installed_package_path) not in vllm_ascend.__path__:
+        vllm_ascend.__path__.append(str(installed_package_path))
+
+
+configure_source_build_info()
 
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
