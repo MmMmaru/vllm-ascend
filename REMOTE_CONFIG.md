@@ -1,8 +1,14 @@
 # 蓝区 Agent 远程驱动绿区服务器
 
 ## 目前配置
-xrs_090容器运行在worker-97-44上，使用这个容器。
-权重位置在/mnt/share/weights文件夹中。
+在docker 容器中进行开发。
+xrs_090容器运行在worker-97-44上 （server1）
+xrs_090容器运行在worker-97-4上 （server2）
+xrs_090容器运行在node-39-137上 （server3 80.5.17.110）
+在97开头机器上，权重位置在/mnt/share/weights文件夹中。
+先用Qwen3-30B-A3B跑通
+
+`node-39-137` 的 GitHub Actions runner 标签必须包含：`self-hosted`、`Linux`、`ARM64` 和 `node-39-137`。`scripts/remote-run.sh` 会将第四个参数作为必需标签传给 workflow。
 
 ## 背景
 
@@ -32,7 +38,7 @@ xrs_090容器运行在worker-97-44上，使用这个容器。
 在蓝区环境的仓库中直接执行：
 
 ```bash
-scripts/remote-run.sh '<command>' '<artifact paths>' '96K'
+scripts/remote-run.sh '<command>' '<artifact paths>' '96K' '<worker name>'
 ```
 
 参数说明：
@@ -40,6 +46,7 @@ scripts/remote-run.sh '<command>' '<artifact paths>' '96K'
 - `<command>`: 要在绿区 950 runner 上执行的 shell 命令。
 - `<artifact paths>`: 需要从绿区回传到蓝区的文件或目录。
 - `96K`: artifact 最大上传预算。由于绿区不适合上传过大文件，这里建议控制在约 `96K`。
+- `<worker name>`: 绿区 runner 的label，必须与 runner 配置时的名称一致。
 
 执行完成后，脚本会在蓝区下载并解压 artifact，输出目录类似：
 

@@ -1,4 +1,7 @@
 ## 工作目标：打通pipeline parallel和flashcomm两个特性的叠加
+### 我的学习
+1、patch机制
+
 
 步骤：
 1. 学习flashcomm原理，（1）怎么开启开关（2）代码实现原理（3）自己跑一些模型来观测
