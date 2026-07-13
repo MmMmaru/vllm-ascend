@@ -7,6 +7,8 @@
 import asyncio
 import os
 import sys
+from importlib.metadata import PackageNotFoundError, distribution
+from pathlib import Path
 
 
 def configure_environment() -> None:
@@ -24,6 +26,26 @@ def configure_environment() -> None:
 
 configure_environment()
 sys.path[0] = os.getcwd()
+
+
+def configure_installed_ascend_extensions() -> None:
+    """追加容器已安装包路径，以复用源码树中不存在的 Ascend 原生扩展。"""
+    import vllm_ascend
+
+    try:
+        installed_package_path = Path(
+            distribution("vllm-ascend").locate_file("vllm_ascend")
+        )
+    except PackageNotFoundError as error:
+        raise RuntimeError("未找到已安装的 vllm-ascend 原生扩展") from error
+
+    if not list(installed_package_path.glob("vllm_ascend_C*.so")):
+        raise RuntimeError(f"缺少 vllm-ascend 原生扩展: {installed_package_path}")
+    if str(installed_package_path) not in vllm_ascend.__path__:
+        vllm_ascend.__path__.append(str(installed_package_path))
+
+
+configure_installed_ascend_extensions()
 
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs

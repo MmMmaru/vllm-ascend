@@ -6,6 +6,7 @@
 - server1 的 `xrs_090` 容器使用持久 editable venv：`/home/x50063850/project/vllm-ascend/.temp/server1-editable`。该环境复用系统 site-packages，并通过 `server1-actions-editable.pth` 优先加载 GitHub Actions checkout 中的 vLLM 与 vLLM Ascend 源码。
 - Actions checkout 会清理未跟踪的 `vllm_ascend/_build_info.py`；每次运行前需在容器中执行 `SOC_VERSION=ascend910_9391 <venv-python> setup.py build_py` 重新生成。
 - vLLM checkout 缺少打包生成的 `vllm/_version.py` 时，源码实验需设置与当前子模块匹配的 `VLLM_VERSION=0.23.0`。
+- vLLM Ascend Python 模块从 Actions checkout 加载；源码树没有编译产物时，仅将容器 site-packages 中的 `vllm_ascend_C*.so` 作为原生扩展后备。
 
 # vLLM Ascend Development Guidelines
 

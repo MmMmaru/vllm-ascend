@@ -21,3 +21,6 @@
 
 ### 07-13 18:28
 离线 run `29242788168` 已进入 Ascend 插件初始化，因 vLLM checkout 缺少打包生成的 `_version.py` 而将版本识别为 `dev`。按插件错误提示为脚本补充当前子模块对应的 `VLLM_VERSION=0.23.0` 默认值。
+
+### 07-13 18:32
+离线 run `29242916573` 已从 checkout 加载模型并完成 4 个 worker 的权重加载，在 profile run 因源码树缺少 `vllm_ascend_C` 原生扩展而失败。脚本保持 checkout Python 代码优先，仅追加容器已安装包目录以复用原生 `.so`。
