@@ -1,9 +1,27 @@
 """使用 FlashComm 对 Qwen3-30B-A3B 进行一次离线异步生成。"""
 
+# docker exec -w "$source_root" xrs_090 \
+#   /usr/local/python3.11.10/bin/python3 \
+#   scripts/Qwen3_flashcomm_offline.py
+
 import asyncio
 import os
 import sys
 
+
+def configure_environment() -> None:
+    """在导入 vLLM 前配置 FlashComm 离线生成的运行环境。"""
+    os.environ.update(
+        {
+            "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
+            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+            "ASCEND_RT_VISIBLE_DEVICES": "1,2,3,5",
+            "VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS": "86400",
+        }
+    )
+
+
+configure_environment()
 sys.path[0] = os.getcwd()
 
 from vllm import SamplingParams

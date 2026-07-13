@@ -6,3 +6,6 @@
 
 ### 07-13 16:42
 `remote-run.sh` 改为通过 workflow dispatch REST API 直接获取 `workflow_run_id`，删除创建阶段的 `gh run list` 轮询，并将运行状态刷新间隔设为 15 秒。
+
+### 07-13 16:56
+将 FlashComm 离线生成所需的环境变量移入 Python 脚本，并固定使用空闲设备 `1,2,3,5`。
