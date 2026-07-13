@@ -10,6 +10,36 @@ xrs_090容器运行在node-39-137上 （server3 80.5.17.110）
 
 `node-39-137` 的 GitHub Actions runner 标签必须包含：`self-hosted`、`Linux`、`ARM64` 和 `node-39-137`。`scripts/remote-run.sh` 会将第四个参数作为必需标签传给 workflow。
 
+### server1 editable 环境
+
+`xrs_090` 中的持久虚拟环境位于：
+
+```text
+/home/x50063850/project/vllm-ascend/.temp/server1-editable
+```
+
+该环境使用 `--system-site-packages` 复用容器的 torch、torch-npu 和 CANN 依赖。由于绿区无法从 PyPI 补充 vLLM 构建依赖，venv 通过 `server1-actions-editable.pth` 优先加载 Actions checkout 中的 vLLM 与 vLLM Ascend 源码。Actions checkout 路径固定时只需写入一次：
+
+```bash
+source_root="$PWD"
+venv=/home/x50063850/project/vllm-ascend/.temp/server1-editable
+site_packages="$venv/lib/python3.11/site-packages"
+printf '%s\n%s\n' "$source_root/vllm" "$source_root" \
+  > "$site_packages/server1-actions-editable.pth"
+```
+
+每次新的 Actions checkout 后，需要初始化 vLLM 子模块，并重新生成会被 checkout 清理的构建元数据：
+
+```bash
+git submodule update --init vllm
+docker exec --workdir "$PWD" \
+  -e SOC_VERSION=ascend910_9391 \
+  -e COMPILE_CUSTOM_KERNELS=0 \
+  xrs_090 \
+  /home/x50063850/project/vllm-ascend/.temp/server1-editable/bin/python \
+  setup.py build_py
+```
+
 ## 背景
 
 蓝区可以方便地使用 Agent 辅助开发，但内网绿区的 950 机器通常无法直接使用 Agent。  

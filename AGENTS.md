@@ -3,6 +3,8 @@
 - 目标：TODO
 - vllm代码路径：/home/maru/project/vllm
 - 运行及配置（必读）：REMOTE_CONFIG.md
+- server1 的 `xrs_090` 容器使用持久 editable venv：`/home/x50063850/project/vllm-ascend/.temp/server1-editable`。该环境复用系统 site-packages，并通过 `server1-actions-editable.pth` 优先加载 GitHub Actions checkout 中的 vLLM 与 vLLM Ascend 源码。
+- Actions checkout 会清理未跟踪的 `vllm_ascend/_build_info.py`；每次运行前需在容器中执行 `SOC_VERSION=ascend910_9391 <venv-python> setup.py build_py` 重新生成。
 
 # vLLM Ascend Development Guidelines
 

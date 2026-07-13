@@ -1,51 +1,28 @@
 """使用 FlashComm 对 Qwen3-30B-A3B 进行一次离线异步生成。"""
 
 # docker exec -w "$source_root" xrs_090 \
-#   /usr/local/python3.11.10/bin/python3 \
+#   /home/x50063850/project/vllm-ascend/.temp/server1-editable/bin/python \
 #   scripts/Qwen3_flashcomm_offline.py
 
 import asyncio
 import os
 import sys
-from importlib.metadata import PackageNotFoundError, distribution
-from pathlib import Path
 
 
 def configure_environment() -> None:
     """在导入 vLLM 前配置 FlashComm 离线生成的运行环境。"""
-    os.environ.update(
-        {
-            "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
-            "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
-            "ASCEND_RT_VISIBLE_DEVICES": "1,2,3,5",
-            "VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS": "86400",
-        }
-    )
+    defaults = {
+        "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
+        "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
+        "ASCEND_RT_VISIBLE_DEVICES": "1,2,3,5",
+        "VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS": "86400",
+    }
+    for name, value in defaults.items():
+        os.environ.setdefault(name, value)
 
 
 configure_environment()
 sys.path[0] = os.getcwd()
-
-
-def configure_source_build_info() -> None:
-    """为源码包补充已安装包生成的构建元数据模块。"""
-    import vllm_ascend
-
-    try:
-        installed_package_path = Path(
-            distribution("vllm-ascend").locate_file("vllm_ascend")
-        )
-    except PackageNotFoundError as error:
-        raise RuntimeError("未找到已安装的 vllm-ascend 构建元数据") from error
-
-    build_info_path = installed_package_path / "_build_info.py"
-    if not build_info_path.is_file():
-        raise RuntimeError(f"缺少 vllm-ascend 构建元数据: {build_info_path}")
-    if str(installed_package_path) not in vllm_ascend.__path__:
-        vllm_ascend.__path__.append(str(installed_package_path))
-
-
-configure_source_build_info()
 
 from vllm import SamplingParams
 from vllm.engine.arg_utils import AsyncEngineArgs
