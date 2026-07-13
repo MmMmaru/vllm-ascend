@@ -74,37 +74,23 @@ echo "workflow=${workflow}"
 echo "worker=${worker}"
 echo "run_key=${run_key}"
 
-gh workflow run "${workflow}" \
-  --repo "${repo}" \
-  --ref "${ref}" \
-  -f "run_key=${run_key}" \
-  -f "worker=${worker}" \
-  -f "command=${command_to_run}" \
-  -f "artifact_paths=${artifact_paths}" \
-  -f "artifact_budget=${artifact_budget}"
+run_id="$(
+  gh api \
+    --method POST \
+    --header "Accept: application/vnd.github+json" \
+    --header "X-GitHub-Api-Version: 2026-03-10" \
+    "repos/${repo}/actions/workflows/${workflow}/dispatches" \
+    --raw-field "ref=${ref}" \
+    --raw-field "inputs[run_key]=${run_key}" \
+    --raw-field "inputs[worker]=${worker}" \
+    --raw-field "inputs[command]=${command_to_run}" \
+    --raw-field "inputs[artifact_paths]=${artifact_paths}" \
+    --raw-field "inputs[artifact_budget]=${artifact_budget}" \
+    --jq ".workflow_run_id"
+)"
 
-echo "Waiting for GitHub to create the workflow run..."
-run_id=""
-for _ in {1..30}; do
-  run_id="$(
-    gh run list \
-      --repo "${repo}" \
-      --workflow "${workflow}" \
-      --branch "${ref}" \
-      --limit 20 \
-      --json databaseId,displayTitle \
-      --jq ".[] | select(.displayTitle == \"Internal command ${run_key}\") | .databaseId" \
-      | head -n 1
-  )"
-
-  if [[ -n "${run_id}" ]]; then
-    break
-  fi
-  sleep 2
-done
-
-if [[ -z "${run_id}" ]]; then
-  echo "Failed to find workflow run for run_key=${run_key}" >&2
+if [[ ! "${run_id}" =~ ^[0-9]+$ ]]; then
+  echo "Workflow dispatch did not return a valid workflow_run_id: ${run_id}" >&2
   exit 1
 fi
 
@@ -112,7 +98,10 @@ echo "run_id=${run_id}"
 echo "url=https://github.com/${repo}/actions/runs/${run_id}"
 
 set +e
-gh run watch "${run_id}" --repo "${repo}" --exit-status
+gh run watch "${run_id}" \
+  --repo "${repo}" \
+  --interval 15 \
+  --exit-status
 watch_status="$?"
 set -e
 script_status="${watch_status}"

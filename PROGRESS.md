@@ -3,3 +3,6 @@
 
 ### 07-13 16:07
 将 `scripts/Qwen3_flashcomm.sh` 改为启动基于 `AsyncLLM.generate()` 的离线单请求生成脚本，保留 FlashComm、四卡 TP 和专家并行配置。
+
+### 07-13 16:42
+`remote-run.sh` 改为通过 workflow dispatch REST API 直接获取 `workflow_run_id`，删除创建阶段的 `gh run list` 轮询，并将运行状态刷新间隔设为 15 秒。
