@@ -18,3 +18,6 @@
 
 ### 07-13 18:24
 确认 pip editable 安装因绿区缺少 `setuptools_rust` 且无法访问 PyPI 而未完成，改用 venv `.pth` 优先加载 Actions checkout。run `29242516053` 已验证主进程和新子进程均加载 checkout 源码。NPU 1、2、3 被其他容器任务占用，本次实验将临时覆盖为当前空闲的 4、5、6、7，脚本默认值仍为 1、2、3、5。
+
+### 07-13 18:28
+离线 run `29242788168` 已进入 Ascend 插件初始化，因 vLLM checkout 缺少打包生成的 `_version.py` 而将版本识别为 `dev`。按插件错误提示为脚本补充当前子模块对应的 `VLLM_VERSION=0.23.0` 默认值。

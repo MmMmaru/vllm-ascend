@@ -16,6 +16,7 @@ def configure_environment() -> None:
         "VLLM_WORKER_MULTIPROC_METHOD": "spawn",
         "ASCEND_RT_VISIBLE_DEVICES": "1,2,3,5",
         "VLLM_EXECUTE_MODEL_TIMEOUT_SECONDS": "86400",
+        "VLLM_VERSION": "0.23.0",
     }
     for name, value in defaults.items():
         os.environ.setdefault(name, value)
