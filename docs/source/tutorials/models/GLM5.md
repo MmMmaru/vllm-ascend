@@ -149,7 +149,6 @@ If you want to deploy multi-node environment, you need to set up environment on 
     export HCCL_BUFFSIZE=200
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w4a8 \
     --host 0.0.0.0 \
@@ -184,7 +183,6 @@ If you want to deploy multi-node environment, you need to set up environment on 
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
     export VLLM_ASCEND_ENABLE_MLAPO=1
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w8a8 \
     --host 0.0.0.0 \
@@ -222,7 +220,6 @@ If you want to deploy multi-node environment, you need to set up environment on 
     export HCCL_BUFFSIZE=200
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w4a8 \
     --host 0.0.0.0 \
@@ -284,7 +281,6 @@ Common Issues Tip: If you encounter issues, Refer to [FAQs](../../faqs.md).
     export HCCL_BUFFSIZE=200
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-bf16 \
     --host 0.0.0.0 \
@@ -328,7 +324,6 @@ Common Issues Tip: If you encounter issues, Refer to [FAQs](../../faqs.md).
     export HCCL_BUFFSIZE=200
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-bf16 \
     --host 0.0.0.0 \
@@ -378,7 +373,6 @@ Common Issues Tip: If you encounter issues, Refer to [FAQs](../../faqs.md).
     export HCCL_BUFFSIZE=200
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w4a8 \
     --host 0.0.0.0 \
@@ -424,7 +418,6 @@ Common Issues Tip: If you encounter issues, Refer to [FAQs](../../faqs.md).
     export HCCL_BUFFSIZE=200
     export VLLM_ASCEND_BALANCE_SCHEDULING=1
     export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w4a8 \
     --host 0.0.0.0 \
@@ -535,7 +528,6 @@ export HCCL_BUFFSIZE=200
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 export VLLM_ASCEND_BALANCE_SCHEDULING=1
 export VLLM_ASCEND_ENABLE_MLAPO=1
-export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
 vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w8a8 \
 --host 0.0.0.0 \
@@ -584,7 +576,6 @@ export HCCL_BUFFSIZE=200
 export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 export VLLM_ASCEND_BALANCE_SCHEDULING=1
 export VLLM_ASCEND_ENABLE_MLAPO=1
-export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
 vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/GLM5-w8a8 \
 --host 0.0.0.0 \
@@ -749,7 +740,6 @@ Before you start, please
         export VLLM_MOONCAKE_ABORT_REQUEST_TIMEOUT=480
 
         export ASCEND_RT_VISIBLE_DEVICES=$1
-        export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
         export VLLM_ASCEND_ENABLE_FUSED_MC2=1
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
@@ -829,7 +819,6 @@ Before you start, please
         export ASCEND_RT_VISIBLE_DEVICES=$1
         export PYTORCH_NPU_ALLOC_CONF=expandable_segments:True
 
-        export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
         export VLLM_ASCEND_ENABLE_FUSED_MC2=1
         export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/usr/local/lib
@@ -1290,7 +1279,6 @@ python load_balance_proxy_server_example.py \
 
 Some configurations for optimization are shown below:
 
-- `VLLM_ASCEND_ENABLE_FLASHCOMM1`: Enable FlashComm optimization to reduce communication and computation overhead on prefill node. With FlashComm enabled, layer_sharding list cannot include o_proj as an element.
 - `VLLM_ASCEND_ENABLE_FUSED_MC2`: Enable the dispatch_ffn_combine/mega_moe fused operator.
 - `VLLM_ASCEND_ENABLE_MLAPO`: Enable fused operator MlaPreprocessOperation.
 
@@ -1377,5 +1365,5 @@ Refer to [vllm benchmark](https://docs.vllm.ai/en/latest/benchmarking/) for more
   ```shell
   --tool-call-parser glm47 \
   --reasoning-parser glm45 \
-  --enable-auto-tool-choice \
+  --enable-auto-tool-choice
   ```

@@ -15,6 +15,8 @@
 # This file is a part of the vllm-ascend project.
 #
 
+import inspect
+
 import torch
 import torch.distributed as dist
 from vllm.distributed.device_communicators.base_device_communicator import DeviceCommunicatorBase
@@ -69,13 +71,22 @@ class NPUCommunicator(DeviceCommunicatorBase):
             unique_name: str = "",
             use_all2all: bool = False,
         ):
-            super().__init__(
-                cpu_group,
-                device,
-                device_group,
-                unique_name,
-                use_all2all=use_all2all,
-            )
+            # ``use_all2all`` is present in newer vLLM main versions, while
+            # the supported 0.26.x base class derives the flag from the
+            # current parallel configuration and does not accept it here.
+            # NPU uses its own all-gather/MC2 path, so either base-class
+            # signature is safe for this communicator.
+            base_init = DeviceCommunicatorBase.__init__
+            if "use_all2all" in inspect.signature(base_init).parameters:
+                super().__init__(
+                    cpu_group,
+                    device,
+                    device_group,
+                    unique_name,
+                    use_all2all=use_all2all,
+                )
+            else:
+                super().__init__(cpu_group, device, device_group, unique_name)
             self.device = torch.npu.current_device()
             self.ca_comm = None
             self.all2all_manager = _NpuAll2AllManager()

@@ -39,8 +39,7 @@ def test_qwen3_5_27b_distributed_mp_tp4():
         del vllm_model
 
 
-@patch.dict(os.environ, {"VLLM_ASCEND_ENABLE_FLASHCOMM1": "1"})
-def test_qwen3_5_35b_distributed_mp_tp4_full_decode_only_mtp3_flashcomm():
+def test_qwen3_5_35b_distributed_mp_tp4_full_decode_only_mtp3():
     example_prompts = [
         "Hello, my name is",
         "The president of the United States is",

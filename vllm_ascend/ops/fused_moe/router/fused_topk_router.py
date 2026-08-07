@@ -17,13 +17,11 @@
 from collections.abc import Callable
 
 import torch
-from vllm.distributed import get_tp_group
 from vllm.distributed.eplb.eplb_state import EplbLayerState
 from vllm.forward_context import get_forward_context
 
 from vllm_ascend.ascend_forward_context import MoECommType
 from vllm_ascend.device.device_op import DeviceOperator
-from vllm_ascend.distributed.utils import split_tensor_along_first_dim
 from vllm_ascend.ops.fused_moe.router.grouped_topk_router import AscendGroupedTopKRouter
 
 
@@ -113,12 +111,6 @@ class AscendFusedTopKRouter(AscendGroupedTopKRouter):
                 else:
                     input_ids = forward_context.moe_comm_method.pad_and_split_input_ids(input_ids)
 
-                if forward_context.flash_comm_v1_enabled and forward_context.moe_comm_type != MoECommType.ALLGATHER:
-                    # Process for Flash Comm V1
-                    tp_size = get_tp_group().world_size
-                    tp_rank = get_tp_group().rank_in_group
-                    splitted_input = split_tensor_along_first_dim(input_ids, num_partitions=tp_size)
-                    input_ids = splitted_input[tp_rank].contiguous()
                 input_ids = torch.where(input_ids == -1, 0, input_ids)
             else:
                 input_ids = None

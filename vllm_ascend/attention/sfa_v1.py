@@ -631,7 +631,6 @@ class AscendSFAImpl(MLAAttentionImpl):
 
         self.enable_mlapo = bool(get_ascend_config().enable_mlapo)
 
-        # Effective in SFA when FlashComm is enabled.
         self.enable_dsa_cp = enable_dsa_cp()
         self.enable_sp = enable_sp()
 

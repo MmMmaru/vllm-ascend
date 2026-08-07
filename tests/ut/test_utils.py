@@ -15,6 +15,7 @@
 
 import math
 import os
+from types import SimpleNamespace
 from unittest import mock
 
 import pytest
@@ -142,6 +143,32 @@ class TestUtils(TestBase):
             mock.patch("vllm_ascend.utils.enable_dsa_cp", return_value=True),
         ):
             self.assertTrue(utils.enable_dsa_cp_with_o_proj_tp())
+
+    def test_enable_sp_uses_upstream_parallel_config(self):
+        sequence_parallel_config = SimpleNamespace(
+            parallel_config=SimpleNamespace(
+                use_sequence_parallel_moe=True,
+                enable_expert_parallel=False,
+            )
+        )
+        self.assertTrue(utils.enable_sp(sequence_parallel_config))
+
+        shared_expert_dp_config = SimpleNamespace(
+            parallel_config=SimpleNamespace(
+                use_sequence_parallel_moe=False,
+                enable_expert_parallel=True,
+            )
+        )
+        self.assertTrue(utils.enable_sp(shared_expert_dp_config, enable_shared_expert_dp=True))
+        self.assertFalse(utils.enable_sp(shared_expert_dp_config))
+
+        no_sequence_parallel_config = SimpleNamespace(
+            parallel_config=SimpleNamespace(
+                use_sequence_parallel_moe=False,
+                enable_expert_parallel=False,
+            )
+        )
+        self.assertFalse(utils.enable_sp(no_sequence_parallel_config, enable_shared_expert_dp=True))
 
     def test_enable_dsa_cp_with_o_proj_tp_accepts_kv_both(self):
         mock_vllm_config = mock.MagicMock()

@@ -284,14 +284,6 @@ class NPUPlatform(Platform):
     def apply_config_platform_defaults(cls, vllm_config: VllmConfig) -> None:
         """Apply Ascend-specific defaults."""
 
-        # Set sp_min_token_num=1 when enable_sp and not set.
-        pass_config = vllm_config.compilation_config.pass_config
-        if pass_config.enable_sp and pass_config.sp_min_token_num is None:
-            from vllm_ascend.compilation.passes.sequence_parallelism import get_sp_min_token_num
-
-            pass_config.sp_min_token_num = get_sp_min_token_num(vllm_config)
-            logger.info("Set sp_min_token_num. sp_min_token_num=%s", pass_config.sp_min_token_num)
-
         default_max_cg_capture_size = _get_default_max_cudagraph_capture_size(vllm_config)
         if default_max_cg_capture_size is not None:
             vllm_config.compilation_config.max_cudagraph_capture_size = default_max_cg_capture_size
@@ -681,11 +673,11 @@ class NPUPlatform(Platform):
 
         if enable_sp(vllm_config):
             assert vllm_config.parallel_config.tensor_parallel_size > 1, (
-                "Flash Comm v1 is only supported when tp_size > 1."
+                "Sequence parallelism is only supported when tp_size > 1."
             )
 
             assert not is_moe_model(vllm_config) or vllm_config.parallel_config.enable_expert_parallel, (
-                "Flash Comm v1 requires enable_expert_parallel=True for MoE models."
+                "Sequence parallelism requires enable_expert_parallel=True for MoE models."
             )
 
         # Set "PYTORCH_NPU_ALLOC_CONF=expandable_segments:True" by default to optimize NPU memory management.
@@ -785,33 +777,17 @@ class NPUPlatform(Platform):
         # due to multiple warmups before actual capturing.
         capturing = False
 
-        # set for sequence parallelism, 1000 is the batch size concurrency
-        # threshold for enabling the flashcomm_v1 or sequence_parallelism feature.
-        # Currently, it is an empirical value. In normal scenarios,
-        # if the concurrency exceeds this threshold,
-        # the performance benefits can be maximized. Conversely,
-        # if the concurrency is below the threshold,
-        # the performance may degrade due to the switching of
-        # communication methods.
         mmrs_fusion = True
         if is_moe_model(vllm_config):
-            flash_comm_v1_enabled = enable_sp(vllm_config) and num_tokens is not None
             mmrs_fusion = False
-        else:
-            flash_comm_v1_enabled = enable_sp(vllm_config) and num_tokens is not None and num_tokens > 1000
-        pad_size = 0
         padded_length = None
-        if flash_comm_v1_enabled:
-            pad_size = (tp_world_size - (num_tokens % tp_world_size)) % tp_world_size
 
         if num_tokens is None and attn_metadata is not None:
             num_tokens = list(attn_metadata.values())[0].num_actual_tokens
         dp_world_size = get_dp_group().world_size
         if dp_world_size > 1 and dp_metadata is not None:
             max_tokens_across_dp = dp_metadata.num_tokens_across_dp_cpu.max().item()
-            if flash_comm_v1_enabled:
-                padded_length = (max_tokens_across_dp + tp_world_size - 1) // tp_world_size * tp_world_size
-                pad_size = padded_length - num_tokens
+            padded_length = (max_tokens_across_dp + tp_world_size - 1) // tp_world_size * tp_world_size
         else:
             max_tokens_across_dp = num_tokens
 
@@ -840,8 +816,6 @@ class NPUPlatform(Platform):
             "capturing": capturing,
             "mmrs_fusion": mmrs_fusion,
             "num_tokens": num_tokens,
-            "flash_comm_v1_enabled": flash_comm_v1_enabled,
-            "pad_size": pad_size,
             "padded_length": padded_length,
             "max_tokens_across_dp": max_tokens_across_dp,
             "mc2_mask": mc2_mask,

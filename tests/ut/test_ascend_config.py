@@ -29,7 +29,7 @@ from vllm_ascend.ascend_config import (
     get_ascend_config,
     init_ascend_config,
 )
-from vllm_ascend.utils import clear_enable_sp, enable_sp
+from vllm_ascend.utils import clear_enable_sp
 
 
 class TestAscendConfig(TestBase):
@@ -309,7 +309,6 @@ class TestAscendConfig(TestBase):
             {
                 "VLLM_ASCEND_ENABLE_FUSED_MC2": "1",
                 "VLLM_ASCEND_ENABLE_MLAPO": "0",
-                "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
                 "MSMONITOR_USE_DAEMON": "1",
                 "VLLM_ASCEND_FUSION_OP_TRANSPOSE_KV_CACHE_BY_BLOCK": "0",
                 "VLLM_ASCEND_ENABLE_NZ": "2",
@@ -319,7 +318,6 @@ class TestAscendConfig(TestBase):
 
         self.assertEqual(ascend_config.enable_fused_mc2, 1)
         self.assertFalse(ascend_config.enable_mlapo)
-        self.assertTrue(ascend_config.enable_flashcomm1)
         self.assertTrue(ascend_config.msmonitor_use_daemon)
         self.assertFalse(ascend_config.enable_transpose_kv_cache_by_block)
         self.assertEqual(ascend_config.weight_nz_mode, 2)
@@ -357,7 +355,6 @@ class TestAscendConfig(TestBase):
         test_vllm_config.additional_config = {
             "enable_fused_mc2": 0,
             "enable_mlapo": True,
-            "enable_flashcomm1": False,
             "msmonitor_use_daemon": False,
             "enable_transpose_kv_cache_by_block": True,
             "weight_nz_mode": 1,
@@ -367,7 +364,6 @@ class TestAscendConfig(TestBase):
             {
                 "VLLM_ASCEND_ENABLE_FUSED_MC2": "1",
                 "VLLM_ASCEND_ENABLE_MLAPO": "0",
-                "VLLM_ASCEND_ENABLE_FLASHCOMM1": "1",
                 "MSMONITOR_USE_DAEMON": "1",
                 "VLLM_ASCEND_FUSION_OP_TRANSPOSE_KV_CACHE_BY_BLOCK": "0",
                 "VLLM_ASCEND_ENABLE_NZ": "2",
@@ -377,7 +373,6 @@ class TestAscendConfig(TestBase):
 
         self.assertEqual(ascend_config.enable_fused_mc2, 0)
         self.assertTrue(ascend_config.enable_mlapo)
-        self.assertFalse(ascend_config.enable_flashcomm1)
         self.assertFalse(ascend_config.msmonitor_use_daemon)
         self.assertTrue(ascend_config.enable_transpose_kv_cache_by_block)
         self.assertEqual(ascend_config.weight_nz_mode, 1)
@@ -385,25 +380,20 @@ class TestAscendConfig(TestBase):
         mock_info_once.assert_any_call("AscendConfig.weight_nz_mode is set from additional_config with value 1.")
 
     @_clean_up_ascend_config
-    @patch("vllm_ascend.platform.NPUPlatform.check_and_update_config")
-    @patch.dict(os.environ, {"VLLM_ASCEND_ENABLE_FLASHCOMM1": "1"}, clear=True)
-    def test_enable_flashcomm1_config_overrides_disabled_env(self, mock_fix_incompatible_config):
+    def test_flashcomm_config_is_rejected(self):
         test_vllm_config = VllmConfig()
         test_vllm_config.additional_config = {"enable_flashcomm1": True}
-        with patch.dict(os.environ, {"VLLM_ASCEND_ENABLE_FLASHCOMM1": "0"}, clear=True):
-            ascend_config = init_ascend_config(test_vllm_config)
-        self.assertTrue(ascend_config.enable_flashcomm1)
-        self.assertTrue(enable_sp(test_vllm_config))
+        with self.assertRaisesRegex(ValueError, "FlashComm is deprecated"):
+            init_ascend_config(test_vllm_config)
 
     @_clean_up_ascend_config
-    @patch("vllm_ascend.platform.NPUPlatform.check_and_update_config")
-    def test_enable_sp_falls_back_to_env_without_current_config(self, mock_check_and_update_config):
-        clear_enable_sp()
+    def test_flashcomm_environment_is_rejected(self):
+        test_vllm_config = VllmConfig()
         with (
-            patch.dict(os.environ, {"VLLM_ASCEND_ENABLE_FLASHCOMM1": "1"}),
-            patch("vllm.config.get_current_vllm_config", side_effect=AssertionError),
+            patch.dict(os.environ, {"VLLM_ASCEND_ENABLE_FLASHCOMM1": "1"}, clear=True),
+            self.assertRaisesRegex(ValueError, "FlashComm is deprecated"),
         ):
-            self.assertTrue(enable_sp())
+            init_ascend_config(test_vllm_config)
 
     @_clean_up_ascend_config
     @patch("vllm_ascend.platform.NPUPlatform.check_and_update_config")

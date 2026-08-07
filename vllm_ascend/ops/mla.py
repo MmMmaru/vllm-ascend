@@ -31,8 +31,7 @@ from vllm.model_executor.layers.quantization import QuantizationConfig
 from vllm.utils.torch_utils import direct_register_custom_op
 from vllm.v1.attention.backend import AttentionMetadata  # type: ignore
 
-from vllm_ascend.ascend_forward_context import _EXTRA_CTX
-from vllm_ascend.utils import is_vl_model, parse_layer_idx
+from vllm_ascend.utils import enable_sp, is_vl_model, parse_layer_idx
 
 
 class IndexerWrapper(nn.Module):
@@ -159,12 +158,12 @@ class AscendMultiHeadLatentAttention(MultiHeadLatentAttentionWrapper):
     ) -> torch.Tensor:
         hidden_dim = self.hidden_size
 
-        if _EXTRA_CTX.flash_comm_v1_enabled and self.tp_size > 1 and self.is_vl_first_layer:
+        if enable_sp() and self.tp_size > 1 and self.is_vl_first_layer:
             need_gather_q_kv = False
             n_out = hidden_states.shape[0] // self.tp_size
             output = torch.empty((n_out, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device)
         else:
-            need_gather_q_kv = _EXTRA_CTX.flash_comm_v1_enabled
+            need_gather_q_kv = enable_sp()
             output = torch.empty(
                 (hidden_states.shape[0], hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
             )

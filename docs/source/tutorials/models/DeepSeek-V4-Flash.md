@@ -82,7 +82,7 @@ Select an image based on your machine type and start the docker image on your no
         -v /root/.cache:/root/.cache \
         -it $IMAGE bash
     ```
-    
+
 === "A2 series"
 
     Start the docker image on each node.
@@ -90,10 +90,10 @@ Select an image based on your machine type and start the docker image on your no
     ```bash
     # deepseek-v4-flash uses the following image
     export IMAGE=quay.io/ascend/vllm-ascend:{{ vllm_ascend_version }}
-    
+
     # deepseek-v4-flash-dspark uses the following image
     export IMAGE=quay.io/ascend/vllm-ascend:nightly-main
-    
+
     docker run --rm \
         --name vllm-ascend \
         --shm-size=512g \
@@ -183,7 +183,6 @@ Single-node deployment completes both Prefill and Decode within the same node. T
             },
         "enable_cpu_binding": true,
         "enable_dsa_cp": true,
-        "enable_flashcomm1": true,
         "multistream_overlap_shared_expert": true}'
     ```
 
@@ -262,7 +261,6 @@ Single-node deployment completes both Prefill and Decode within the same node. T
             "enable_static_kernel": false
             },
         "enable_cpu_binding": true,
-        "enable_flashcomm1": true,
         "multistream_overlap_shared_expert": true}'
     ```
 
@@ -306,7 +304,6 @@ Single-node deployment completes both Prefill and Decode within the same node. T
             },
             "enable_cpu_binding": true,
             "enable_dsa_cp": true,
-            "enable_flashcomm1": true,
             "multistream_overlap_shared_expert": true
         }'
     ```
@@ -317,7 +314,6 @@ Key Parameter Descriptions:
 - `--no-enable-prefix-caching` indicates that prefix caching is disabled. To enable it, remove this option.
 - `--speculative-config` configures the MTP (Multi-Token Prediction) speculative decoding to accelerate inference. When using a DSpark model, set the speculative decoding method to `dspark`.
 - `--compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}'` enables full ACL graph execution in the decode phase to reduce scheduling latency.
-- `enable_flashcomm1` enables the FlashComm communication optimization.
 - `VLLM_PREFIX_CACHE_RETENTION_INTERVAL`: Controls the retention interval, in tokens, for prefix-cache checkpoints of hybrid attention layers. It is applicable to DeepSeek-V4 and takes effect only when prefix caching is enabled. Under KV-cache pressure, it can improve the effective prefix-cache hit rate for reusable long prefixes. The value must be a non-negative multiple of `--block-size`; for DeepSeek-V4-Flash, 128 times `--block-size` is recommended. Set it to `4096` when `--block-size` is `32`, or `16384` when `--block-size` is `128`.
 
 Common Issues Tip: If you encounter issues, please refer to the [Public FAQ](https://docs.vllm.ai/projects/ascend/en/latest/faqs.html) for troubleshooting.
@@ -529,7 +525,7 @@ Before you start, please:
             --gpu-memory-utilization 0.9 \
             --quantization ascend \
             --enforce-eager \
-            --additional-config '{"enable_cpu_binding": true, "enable_shared_expert_dp": true,  "enable_dsa_cp": true, "enable_flashcomm1":true}' \
+            --additional-config '{"enable_cpu_binding": true, "enable_shared_expert_dp": true,  "enable_dsa_cp": true}' \
             --kv-transfer-config \
             '{"kv_connector": "MooncakeHybridConnector",
             "kv_role": "kv_producer",
@@ -676,7 +672,7 @@ Before you start, please:
             --gpu-memory-utilization 0.9 \
             --quantization ascend \
             --enforce-eager \
-            --additional-config '{"enable_cpu_binding": true, "enable_shared_expert_dp": true,  "enable_dsa_cp": false, "enable_flashcomm1":true}' \
+            --additional-config '{"enable_cpu_binding": true, "enable_shared_expert_dp": true,  "enable_dsa_cp": false}' \
             --kv-transfer-config \
             '{"kv_connector": "MooncakeHybridConnector",
             "kv_role": "kv_producer",
@@ -1054,7 +1050,6 @@ Before you start, please:
 
 Key Parameter Descriptions:
 
-- `enable_flashcomm1`: enables the communication optimization function on the prefill nodes.
 - `recompute_scheduler_enable: true`: enables the recomputation scheduler. When the KV Cache of the decode node is insufficient, requests will be sent to the prefill node to recompute the KV Cache. In the PD separation scenario, enable this configuration only on decode nodes.
 - `speculative-config`: When DSpark is enabled, Prefill and Decode must use the same number of speculative tokens. For MTP, we recommend setting Prefill to 1 and Decode to the actual number of speculative tokens.
 - `MooncakeHybridConnector`: the KV transfer connector used for PD separation, transferring KV Cache between prefill and decode nodes.

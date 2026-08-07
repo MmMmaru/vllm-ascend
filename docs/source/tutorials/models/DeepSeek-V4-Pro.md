@@ -159,7 +159,6 @@ The quantized model `DeepSeek-V4-Pro-w4a8-mtp` requires at least 2 Atlas 800 A3 
     export HCCL_OP_EXPANSION_MODE="AIV"
 
     export TASK_QUEUE_ENABLE=1
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
 
@@ -235,7 +234,6 @@ The quantized model `DeepSeek-V4-Pro-w4a8-mtp` requires at least 2 Atlas 800 A3 
     export HCCL_OP_EXPANSION_MODE="AIV"
 
     export TASK_QUEUE_ENABLE=1
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
 
@@ -314,7 +312,6 @@ The quantized model `DeepSeek-V4-Pro-w4a8-mtp` requires at least 2 Atlas 800 A3 
     export OMP_NUM_THREADS=10
     export TASK_QUEUE_ENABLE=1
     export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/DeepSeek-V4-Pro-w4a8-mtp \
       --safetensors-load-strategy 'prefetch' \
@@ -371,7 +368,6 @@ The quantized model `DeepSeek-V4-Pro-w4a8-mtp` requires at least 2 Atlas 800 A3 
     export OMP_NUM_THREADS=10
     export TASK_QUEUE_ENABLE=1
     export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
-    export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
     vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/DeepSeek-V4-Pro-w4a8-mtp \
       --safetensors-load-strategy 'prefetch' \
@@ -415,7 +411,6 @@ Key Parameter Descriptions:
 - `--max-model-len` specifies the maximum context length. Adjust it according to your actual scenario.
 - `--speculative-config` configures the MTP (Multi-Token Prediction) speculative decoding to accelerate inference.
 - `--compilation-config '{"cudagraph_mode":"FULL_DECODE_ONLY"}'` enables full ACL graph execution in the decode phase to reduce scheduling latency.
-- `VLLM_ASCEND_ENABLE_FLASHCOMM1=1` enables the FlashComm communication optimization.
 
 Common Issues Tip: If you encounter issues, please refer to the [Public FAQ](https://docs.vllm.ai/projects/ascend/en/latest/faqs.html) for troubleshooting.
 
@@ -594,7 +589,6 @@ Before you start, please:
         export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
         export ASCEND_RT_VISIBLE_DEVICES=$1
         export VLLM_ASCEND_ENABLE_FUSED_MC2=1
-        export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
         vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/DeepSeek-V4-Pro-w4a8-mtp \
             --host 0.0.0.0 \
@@ -665,7 +659,6 @@ Before you start, please:
         export LD_PRELOAD=/usr/lib/aarch64-linux-gnu/libjemalloc.so.2:$LD_PRELOAD
         export ASCEND_RT_VISIBLE_DEVICES=$1
         export VLLM_ASCEND_ENABLE_FUSED_MC2=1
-        export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
 
         vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/DeepSeek-V4-Pro-w4a8-mtp \
             --host 0.0.0.0 \
@@ -962,7 +955,6 @@ Before you start, please:
         sysctl -w kernel.numa_balancing=0
         sysctl kernel.sched_migration_cost_ns=50000
 
-        export VLLM_ASCEND_ENABLE_FLASHCOMM1=1
         export ASCEND_RT_VISIBLE_DEVICES=$1
 
         vllm serve /root/.cache/modelscope/hub/models/vllm-ascend/DeepSeek-V4-Pro-w4a8-mtp \
@@ -1152,7 +1144,6 @@ Before you start, please:
 
 Key Parameter Descriptions:
 
-- `VLLM_ASCEND_ENABLE_FLASHCOMM1=1`: enables the communication optimization function on the prefill nodes.
 - `VLLM_ASCEND_ENABLE_FUSED_MC2=1`: enables the Fused MC2 fusion operator to accelerate communication on prefill nodes (A3 series).
 - `recompute_scheduler_enable: true`: enables the recomputation scheduler. When the KV Cache of the decode node is insufficient, requests will be sent to the prefill node to recompute the KV Cache. In the PD separation scenario, enable this configuration only on decode nodes.
 - `MooncakeHybridConnector`: the KV transfer connector used for PD separation, transferring KV Cache between prefill and decode nodes.

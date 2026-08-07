@@ -33,6 +33,7 @@ from vllm.v1.attention.backend import AttentionMetadata
 from vllm_ascend.models.layer.attention.layer import DSAAttention
 from vllm_ascend.utils import (
     AscendDeviceType,
+    enable_sp,
     get_ascend_device_type,
 )
 
@@ -161,7 +162,7 @@ class AscendDeepseekSparseAttention(MultiHeadLatentAttentionWrapper):
         kv_cache: torch.Tensor | None = None,
         attn_metadata: AttentionMetadata | None = None,
     ) -> torch.Tensor:
-        need_gather_q_kv = get_forward_context().flash_comm_v1_enabled
+        need_gather_q_kv = enable_sp()
         output_shape = hidden_states.shape
 
         output = torch.empty(output_shape, dtype=hidden_states.dtype, device=hidden_states.device)

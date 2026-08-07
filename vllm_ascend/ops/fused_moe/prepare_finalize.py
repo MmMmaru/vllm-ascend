@@ -33,7 +33,6 @@ from vllm_ascend.ascend_forward_context import _EXTRA_CTX
 from vllm_ascend.lora.fused_moe import prepare_lora_indices
 from vllm_ascend.ops.fused_moe.moe_runtime_args import MoEPrepareOutput
 from vllm_ascend.quantization.quant_type import QuantType
-from vllm_ascend.utils import enable_sp, enable_sp_by_pass
 
 
 class PrepareAndFinalize(ABC):
@@ -348,13 +347,11 @@ class PrepareAndFinalizeWithAllGather(PrepareAndFinalize):
     def _use_ep_sequence_parallel(self) -> bool:
         """Whether MoE itself must use the EP sequence-parallel path.
 
-        ``enable_sp_by_pass`` enables the compilation pass, which already
-        inserts a TP reduce-scatter/all-gather pair around RMSNorm.  It does
-        not mean that the MoE configuration owns sequence-parallel tokens.
-        When the MoE config has ``sp_size == 1``, selecting the EP path here
-        would gather the tokens a second time before routing.
+        The MoE configuration owns sequence-parallel tokens.  Selecting the
+        EP path from any other flag would gather tokens a second time before
+        routing.
         """
-        return enable_sp() or (enable_sp_by_pass() and self.moe_config.is_sequence_parallel)
+        return self.moe_config.is_sequence_parallel
 
     def prepare(
         self,
@@ -397,8 +394,6 @@ class PrepareAndFinalizeWithAllGather(PrepareAndFinalize):
         hidden_states = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(hidden_states, True, True)
         router_logits = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(router_logits, True, True)
 
-        # TODO(fuzhihong): To adapt to self.num_token in the all_gather_input_id_with_dp_group method,
-        #  when flashcomm1 is used and dp = N(N >=2).
         self.num_tokens = hidden_states.shape[0]
 
         if pertoken_scale is not None:
