@@ -309,7 +309,10 @@ def test_routed_experts_select_experts_validates_router_logits(monkeypatch):
 
 
 @pytest.mark.parametrize("return_with_event", [False, True])
-def test_routed_experts_forward_impl_runs_current_flow(monkeypatch, return_with_event):
+@pytest.mark.parametrize("is_sequence_parallel", [False, True])
+def test_routed_experts_forward_impl_runs_current_flow(
+    monkeypatch, return_with_event, is_sequence_parallel
+):
     routed_experts = AscendRoutedExperts.__new__(AscendRoutedExperts)
     hidden_states = torch.randn(2, 4)
     prepared_hidden_states = torch.randn(2, 4)
@@ -338,7 +341,10 @@ def test_routed_experts_forward_impl_runs_current_flow(monkeypatch, return_with_
     routed_experts.top_k = 2
     routed_experts.renormalize = True
     routed_experts.use_grouped_topk = False
-    routed_experts.moe_config = SimpleNamespace(num_experts=3)
+    routed_experts.moe_config = SimpleNamespace(
+        num_experts=3,
+        is_sequence_parallel=is_sequence_parallel,
+    )
     routed_experts.ascend_expert_map = None
     routed_experts.topk_group = None
     routed_experts.num_expert_group = None
@@ -388,7 +394,7 @@ def test_routed_experts_forward_impl_runs_current_flow(monkeypatch, return_with_
     moe_comm_method.prepare.assert_called_once_with(
         hidden_states=hidden_states,
         router_logits=router_logits,
-        replace_allreduce=False,
+        replace_allreduce=is_sequence_parallel,
         enable_shared_expert_dp=False,
         quant_type=QuantType.NONE,
     )

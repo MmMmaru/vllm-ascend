@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: Apache-2.0
+from types import SimpleNamespace
+
+import torch
+
+from vllm_ascend.ops import register_custom_ops as custom_ops
+
+
+class _EpGroup:
+    world_size = 4
+
+    def all_gather(self, x: torch.Tensor, dim: int) -> torch.Tensor:
+        assert dim == 0
+        assert x.shape == (3, 4)
+        return torch.arange(48, dtype=x.dtype).view(12, 4)
+
+    def reduce_scatter(self, x: torch.Tensor, dim: int) -> torch.Tensor:
+        assert dim == 0
+        assert x.shape == (12, 4)
+        assert torch.equal(
+            x[:, 0],
+            torch.tensor([0, 0, 0, 4, 0, 0, 8, 12, 16, 20, 24, 28], dtype=x.dtype),
+        )
+        return x[:3]
+
+
+def _patch_sp_ep_context(monkeypatch):
+    context = SimpleNamespace(
+        dp_metadata=SimpleNamespace(
+            get_chunk_sizes_across_dp_rank=lambda: [1, 1, 3, 3],
+        ),
+        is_draft_model=False,
+    )
+    monkeypatch.setattr(custom_ops, "_EXTRA_CTX", context)
+    monkeypatch.setattr(custom_ops, "get_forward_context", lambda: context)
+    monkeypatch.setattr(custom_ops, "get_ep_group", _EpGroup)
+
+
+def test_sp_ep_all_gather_pads_and_unpads_local_chunks(monkeypatch):
+    _patch_sp_ep_context(monkeypatch)
+
+    result = custom_ops._maybe_all_gather_and_maybe_unpad_impl(
+        torch.empty(1, 4), True, True
+    )
+
+    assert result.shape == (8, 4)
+    assert torch.equal(
+        result[:, 0],
+        torch.tensor([0, 12, 24, 28, 32, 36, 40, 44], dtype=result.dtype),
+    )
+
+
+def test_sp_ep_reduce_scatter_pads_local_chunks(monkeypatch):
+    _patch_sp_ep_context(monkeypatch)
+
+    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4), True)
+
+    assert result.shape == (3, 4)
