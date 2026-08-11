@@ -18,11 +18,11 @@ from vllm_ascend.ops.triton.muls_add import muls_add_triton
 from vllm_ascend.utils import is_vl_model
 
 
-def _sequence_parallel_enabled() -> bool:
+def _sequence_parallel_enabled() -> bool: # TODO1: 删除辅助函数
     try:
         return get_current_vllm_config().parallel_config.use_sequence_parallel_moe
     except AssertionError:
-        return False
+        return False 
 
 
 def _get_ep_local_sizes(dp_metadata, ep_group) -> list[int] | None:
@@ -51,7 +51,7 @@ def _pad_to_ep_local_size(x: torch.Tensor, max_local_size: int) -> torch.Tensor:
     return padded
 
 
-def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor:
+def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor: # TODO1: 做最小化更改，
     try:
         forward_context = get_forward_context()
     except AssertionError:
@@ -66,8 +66,8 @@ def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_c
         local_sizes = _get_ep_local_sizes(dp_metadata, ep_group)
         if local_sizes is not None:
             max_local_size = max(local_sizes)
-            x = _pad_to_ep_local_size(x, max_local_size)
-
+            x = _pad_to_ep_local_size(x, max_local_size) # TODO1：pad逻辑为什么在这里？
+        # need to unpad from ep size
         x = ep_group.all_gather(x, 0)
         if dp_metadata is not None:
             if local_sizes is not None:
@@ -84,7 +84,7 @@ def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_c
                     result[offset : offset + num_tokens_dp] = x[idx, :num_tokens_dp]
                     offset += num_tokens_dp
                 x = result
-    elif _sequence_parallel_enabled():
+    elif _sequence_parallel_enabled(): # 此处逻辑是干嘛的？会有SP但是不是EP的情况吗？上游设置是 EP, TP, backend
         x = tensor_model_parallel_all_gather(x, 0)
 
     return x

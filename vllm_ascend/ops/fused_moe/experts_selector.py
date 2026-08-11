@@ -253,7 +253,7 @@ def _select_experts_with_fusion_ops(
                 input_ids = prepare_finalize.all_gather_input_id_with_dp_group(input_ids)
             else:
                 input_ids = forward_context.moe_comm_method.pad_and_split_input_ids(input_ids)
-
+            # TODO1: 此处是否需要删除？解释原因
             input_ids = torch.where(input_ids == -1, 0, input_ids)
         else:
             input_ids = None

@@ -105,7 +105,7 @@ class AscendMoERunner(MoERunner):  # type: ignore[no-redef]
             MoECommType.ALLTOALL,
             MoECommType.MC2,
             MoECommType.FUSED_MC2,
-        }
+        } or (moe_comm_type == MoECommType.ALLGATHER and self.moe_config.is_sequence_parallel) # TODO1：此处应该保留reduce的情况
 
     @property
     def local_num_experts(self) -> int:
