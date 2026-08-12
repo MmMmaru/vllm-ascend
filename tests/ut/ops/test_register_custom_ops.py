@@ -8,6 +8,7 @@ from vllm_ascend.ops import register_custom_ops as custom_ops
 
 class _EpGroup:
     world_size = 4
+    rank_in_group = 2
 
     def all_gather(self, x: torch.Tensor, dim: int) -> torch.Tensor:
         assert dim == 0
@@ -22,6 +23,10 @@ class _EpGroup:
             torch.tensor([0, 0, 0, 4, 0, 0, 8, 12, 16, 20, 24, 28], dtype=x.dtype),
         )
         return x[:3]
+
+
+class _EpGroupRank0(_EpGroup):
+    rank_in_group = 0
 
 
 def _patch_sp_ep_context(monkeypatch):
@@ -56,3 +61,24 @@ def test_sp_ep_reduce_scatter_pads_local_chunks(monkeypatch):
     result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4), True)
 
     assert result.shape == (3, 4)
+
+
+def test_sp_ep_reduce_scatter_unpads_local_chunk(monkeypatch):
+    _patch_sp_ep_context(monkeypatch)
+    monkeypatch.setattr(custom_ops, "get_ep_group", _EpGroupRank0)
+
+    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4), True)
+
+    assert result.shape == (1, 4)
+
+
+def test_sp_ep_fake_shapes_follow_uneven_local_chunks(monkeypatch):
+    _patch_sp_ep_context(monkeypatch)
+
+    gathered = custom_ops._maybe_all_gather_and_maybe_unpad_fake(
+        torch.empty(1, 4), True, True
+    )
+    reduced = custom_ops._maybe_pad_and_reduce_fake(torch.empty(8, 4), True)
+
+    assert gathered.shape == (8, 4)
+    assert reduced.shape == (3, 4)

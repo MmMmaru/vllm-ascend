@@ -258,16 +258,20 @@ def test_unquantized_apply_builds_current_fused_experts_input(monkeypatch, moe_c
 
 
 @pytest.mark.parametrize(
-    "moe_comm_type, expected",
+    "moe_comm_type, is_sequence_parallel, expected",
     [
-        (MoECommType.ALLTOALL, True),
-        (MoECommType.MC2, True),
-        (MoECommType.FUSED_MC2, True),
-        (MoECommType.ALLGATHER, False),
+        (MoECommType.ALLTOALL, False, True),
+        (MoECommType.MC2, False, True),
+        (MoECommType.FUSED_MC2, False, True),
+        (MoECommType.ALLGATHER, False, False),
+        (MoECommType.ALLGATHER, True, True),
     ],
 )
-def test_runner_reduction_contract(monkeypatch, moe_comm_type, expected):
+def test_runner_reduction_contract(
+    monkeypatch, moe_comm_type, is_sequence_parallel, expected
+):
     runner = AscendMoERunner.__new__(AscendMoERunner)
+    runner.moe_config = SimpleNamespace(is_sequence_parallel=is_sequence_parallel)
     shared_output = object()
     monkeypatch.setattr(
         fused_moe_module,

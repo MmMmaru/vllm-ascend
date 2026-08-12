@@ -52,6 +52,9 @@ def _pad_to_ep_local_size(x: torch.Tensor, max_local_size: int) -> torch.Tensor:
 
 
 def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor: # TODO1: 做最小化更改，
+    """
+    
+    """
     try:
         forward_context = get_forward_context()
     except AssertionError:
@@ -121,7 +124,10 @@ def _maybe_pad_and_reduce_impl(x: torch.Tensor, is_ep_comm: bool = False) -> tor
         for idx, size in enumerate(local_sizes):
             padded_x[idx, :size] = x[offset : offset + size]
             offset += size
-        return ep_group.reduce_scatter(padded_x.view(-1, *x.shape[1:]), 0)
+        reduced = ep_group.reduce_scatter(padded_x.view(-1, *x.shape[1:]), 0)
+        # The collective needs equal-sized chunks, while the next
+        # sequence-parallel layer expects this rank's original token count.
+        return reduced[: local_sizes[ep_group.rank_in_group]]
 
     # Pad each DP shard back to the common length before EP reduce-scatter.
     dp_size = get_dp_group().world_size
@@ -137,6 +143,18 @@ def _maybe_pad_and_reduce_impl(x: torch.Tensor, is_ep_comm: bool = False) -> tor
 
 
 def _maybe_all_gather_and_maybe_unpad_fake(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor:
+    if label and is_ep_comm:
+        try:
+            forward_context = get_forward_context()
+            ep_group = get_ep_group()
+            local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
+        except AssertionError:
+            local_sizes = None
+        if local_sizes is not None:
+            return torch.empty(
+                (sum(local_sizes), *x.shape[1:]), device=x.device, dtype=x.dtype
+            )
+
     if label and (is_ep_comm or _sequence_parallel_enabled()):
         group_size = get_ep_group().world_size if is_ep_comm else get_tp_group().world_size
         return torch.empty(
@@ -147,6 +165,20 @@ def _maybe_all_gather_and_maybe_unpad_fake(x: torch.Tensor, label: bool, is_ep_c
 
 
 def _maybe_pad_and_reduce_fake(x: torch.Tensor, is_ep_comm: bool = False) -> torch.Tensor:
+    if is_ep_comm:
+        try:
+            forward_context = get_forward_context()
+            ep_group = get_ep_group()
+            local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
+        except AssertionError:
+            local_sizes = None
+        if local_sizes is not None:
+            return torch.empty(
+                (local_sizes[ep_group.rank_in_group], *x.shape[1:]),
+                device=x.device,
+                dtype=x.dtype,
+            )
+
     if is_ep_comm or _sequence_parallel_enabled():
         group_size = get_ep_group().world_size if is_ep_comm else get_tp_group().world_size
         return torch.empty(
