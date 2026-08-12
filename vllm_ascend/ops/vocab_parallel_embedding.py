@@ -20,7 +20,6 @@ import torch
 import torch.distributed as dist
 from torch import nn
 from torch.nn.parameter import Parameter
-from vllm.config import get_current_vllm_config
 from vllm.distributed import divide
 from vllm.distributed.parallel_state import get_tp_group
 from vllm.model_executor.layers.logits_processor import LogitsProcessor
@@ -39,12 +38,10 @@ from vllm.model_executor.layers.vocab_parallel_embedding import (
 from vllm.model_executor.utils import set_weight_attrs
 
 from vllm_ascend.ascend_config import get_ascend_config
-from vllm_ascend.ascend_forward_context import _EXTRA_CTX
 from vllm_ascend.distributed.parallel_state import get_embed_tp_group, get_lmhead_tp_group
 from vllm_ascend.utils import (
     embedding_tp_enable,
     get_potential_max_tokens,
-    is_vl_model,
     lmhead_tp_enable,
     vllm_version_is,
 )
@@ -256,24 +253,13 @@ class AscendVocabParallelEmbedding(VocabParallelEmbedding):
         tp_group = get_tp_group()
         if tp_group.world_size == 1:
             return output_parallel
-        # The config context may be unset (e.g. profiling/dummy runs); fall
-        # back to the plain all-reduce path in that case.
-        try:
-            sp_enabled = get_current_vllm_config().parallel_config.use_sequence_parallel_moe
-        except AssertionError:
-            sp_enabled = False
-        if sp_enabled and not (
-            _EXTRA_CTX.is_draft_model and is_vl_model()
-        ):
-            padding = (-output_parallel.shape[0]) % tp_group.world_size
-            if padding:
-                output_parallel = torch.nn.functional.pad(
-                    output_parallel, (0, 0) * (output_parallel.ndim - 1) + (0, padding)
-                )
-            output = torch.ops.vllm.reduce_scatter(output_parallel, 0, tp_group.world_size, tp_group.unique_name)
-        else:
-            output = torch.ops.vllm.all_reduce(output_parallel, tp_group.unique_name)
-        return output
+        # vLLM 0.26 model forwards expect the first decoder layer to receive
+        # the complete token sequence. Sequence parallelism starts only after
+        # that layer's attention output, so reducing-scattering the embedding
+        # here would feed each TP rank only a token shard. The dedicated
+        # embedding-TP path above owns its complete gather/scatter protocol;
+        # the regular TP embedding path must keep upstream all-reduce semantics.
+        return torch.ops.vllm.all_reduce(output_parallel, tp_group.unique_name)
 
 
 class AscendParallelLMHead(ParallelLMHead):

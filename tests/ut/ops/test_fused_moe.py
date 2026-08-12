@@ -10,6 +10,7 @@ from torch import nn
 from vllm_ascend.ascend_forward_context import MoECommType
 from vllm_ascend.ops.fused_moe import fused_moe as fused_moe_module
 from vllm_ascend.ops.fused_moe import routed_experts as routed_experts_module
+from vllm_ascend.ops.fused_moe import shared_experts as shared_experts_module
 from vllm_ascend.ops.fused_moe.fused_moe import AscendMoERunner
 from vllm_ascend.ops.fused_moe.routed_experts import (
     AscendRoutedExperts,
@@ -450,6 +451,33 @@ def test_shared_experts_part2_applies_optional_gate(with_gate):
     if with_gate:
         expected = expected * 0.5
     torch.testing.assert_close(output, expected)
+
+
+@pytest.mark.parametrize("moe_comm_type", [MoECommType.ALLTOALL, MoECommType.MC2, MoECommType.FUSED_MC2])
+@pytest.mark.parametrize("is_sequence_parallel", [False, True])
+def test_shared_experts_do_not_reduce_sequence_parallel_token_shards(
+    monkeypatch, moe_comm_type, is_sequence_parallel
+):
+    shared_experts = AscendSharedExperts.__new__(AscendSharedExperts)
+    shared_experts.is_sequence_parallel = is_sequence_parallel
+    shared_out = torch.randn(2, 4)
+    mock_all_reduce = MagicMock(return_value=shared_out + 1)
+
+    monkeypatch.setattr(
+        shared_experts_module,
+        "_EXTRA_CTX",
+        SimpleNamespace(moe_comm_type=moe_comm_type),
+    )
+    monkeypatch.setattr(shared_experts_module, "shared_expert_dp_enabled", lambda: False)
+    monkeypatch.setattr(shared_experts_module, "tensor_model_parallel_all_reduce", mock_all_reduce)
+
+    output = shared_experts._maybe_reduce_output(shared_out)
+
+    if is_sequence_parallel:
+        assert output is shared_out
+        mock_all_reduce.assert_not_called()
+    else:
+        mock_all_reduce.assert_called_once_with(shared_out)
 
 
 @pytest.mark.parametrize("has_shared_experts", [False, True])

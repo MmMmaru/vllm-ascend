@@ -64,6 +64,7 @@ class AscendSharedExperts:
         self.layer = layer
         self.hidden_size = moe_config.hidden_dim
         self.in_dtype = moe_config.in_dtype
+        self.is_sequence_parallel = moe_config.is_sequence_parallel
         self.quant_type = quant_type
         ascend_config = get_ascend_config()
         self.multistream_overlap = ascend_config.multistream_overlap_shared_expert
@@ -126,6 +127,16 @@ class AscendSharedExperts:
         if hasattr(self.layer, "expert_gate") and self.layer.expert_gate is not None:
             gate_out, _ = self.layer.expert_gate(hidden_states)  # type: ignore
             shared_out = F.sigmoid(gate_out) * shared_out
+        return shared_out
+
+    def _maybe_reduce_output(self, shared_out: torch.Tensor) -> torch.Tensor:
+        moe_comm_type = _EXTRA_CTX.moe_comm_type
+        if (
+            moe_comm_type in {MoECommType.ALLTOALL, MoECommType.MC2, MoECommType.FUSED_MC2}
+            and not self.is_sequence_parallel
+            and not shared_expert_dp_enabled()
+        ):
+            return tensor_model_parallel_all_reduce(shared_out)
         return shared_out
 
     def forward(self, hidden_states: torch.Tensor, fused_moe_evts: FusedMoEEvents):
@@ -225,12 +236,8 @@ class AscendSharedExperts:
         if self.multistream_overlap:
             torch.npu.current_stream().wait_stream(shared_experts_calculation_stream())
 
-        # NOTE: This is exactly the opposite of
-        # `maybe_all_reduce_tensor_model_parallel`
-        moe_comm_type = _EXTRA_CTX.moe_comm_type
-        if (
-            moe_comm_type in {MoECommType.ALLTOALL, MoECommType.MC2, MoECommType.FUSED_MC2}
-            and not shared_expert_dp_enabled()
-        ):
-            shared_out = tensor_model_parallel_all_reduce(shared_out)
-        return shared_out
+        # Sequence-parallel shared experts use full, replicated weights and
+        # process different token shards on each TP rank. Summing those shards
+        # position-wise would mix unrelated tokens. Non-SP shared experts keep
+        # the tensor-parallel projection and still require this reduction.
+        return self._maybe_reduce_output(shared_out)
