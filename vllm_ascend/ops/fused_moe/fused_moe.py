@@ -16,7 +16,8 @@
 #
 import torch
 import torch.nn.functional as F
-from vllm.distributed import get_dp_group, get_ep_group, get_tp_group
+from vllm.config import get_current_vllm_config
+from vllm.distributed import get_dp_group, get_ep_group, get_tp_group, tensor_model_parallel_all_reduce
 from vllm.model_executor.layers.fused_moe.layer import (
     FusedMoE,  # noqa: F401
     MoERunner,
@@ -162,7 +163,12 @@ class AscendMoERunner(MoERunner):  # type: ignore[no-redef]
             # the model, so a TP all-reduce here would sum different token
             # segments and corrupt the sequence.
             if not self.moe_config.is_sequence_parallel:
-                states = torch.ops.vllm.maybe_all_reduce_tensor_model_parallel(states)
+                if _EXTRA_CTX.moe_comm_type not in {
+                    MoECommType.ALLTOALL,
+                    MoECommType.MC2,
+                    MoECommType.FUSED_MC2,
+                }:
+                    states = tensor_model_parallel_all_reduce(states)
             return states[..., :trunc_size]
     else:
 
@@ -173,7 +179,18 @@ class AscendMoERunner(MoERunner):  # type: ignore[no-redef]
             output_is_reduced: bool | None = None,
         ) -> torch.Tensor:
             _ = output_is_reduced
-            states = torch.ops.vllm.maybe_all_reduce_tensor_model_parallel(states)
+            # The config context may be unset (e.g. profiling/dummy runs);
+            # fall back to the plain all-reduce path in that case.
+            try:
+                sp_enabled = get_current_vllm_config().parallel_config.use_sequence_parallel_moe
+            except AssertionError:
+                sp_enabled = False
+            if _EXTRA_CTX.moe_comm_type not in {
+                MoECommType.ALLTOALL,
+                MoECommType.MC2,
+                MoECommType.FUSED_MC2,
+            } and not sp_enabled:
+                states = tensor_model_parallel_all_reduce(states)
             if trunc_size is not None and trunc_size > 0:
                 return states[..., :trunc_size]
             return states

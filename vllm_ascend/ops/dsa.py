@@ -33,7 +33,6 @@ from vllm.v1.attention.backend import AttentionMetadata
 from vllm_ascend.models.layer.attention.layer import DSAAttention
 from vllm_ascend.utils import (
     AscendDeviceType,
-    enable_sp,
     get_ascend_device_type,
 )
 
@@ -162,7 +161,6 @@ class AscendDeepseekSparseAttention(MultiHeadLatentAttentionWrapper):
         kv_cache: torch.Tensor | None = None,
         attn_metadata: AttentionMetadata | None = None,
     ) -> torch.Tensor:
-        need_gather_q_kv = enable_sp()
         output_shape = hidden_states.shape
 
         output = torch.empty(output_shape, dtype=hidden_states.dtype, device=hidden_states.device)
@@ -170,7 +168,7 @@ class AscendDeepseekSparseAttention(MultiHeadLatentAttentionWrapper):
         # All DSA forward paths (attention + o_proj, including OTP HCCL
         # collectives) run inside the dsa_forward custom op, which is required
         # for ACL graph capture (registered with dispatch_key="PrivateUse1").
-        torch.ops.vllm.dsa_forward(hidden_states, need_gather_q_kv, output, self.prefix)
+        torch.ops.vllm.dsa_forward(hidden_states, output, self.prefix)
 
         output = output.view(-1, output_shape[-1])
         return output
@@ -178,7 +176,6 @@ class AscendDeepseekSparseAttention(MultiHeadLatentAttentionWrapper):
 
 def dsa_forward(
     hidden_states: torch.Tensor,
-    need_gather_q_kv: bool,
     output: torch.Tensor,
     layer_name: str,
 ) -> None:
@@ -192,20 +189,19 @@ def dsa_forward(
     if attn_metadata is None:
         # Profiling run: forward() handles OTP by running _forward_o_proj on a
         # zero input so HCCL collectives are captured by the ACL graph.
-        self.dsa_attn.impl.forward(self.dsa_attn.layer_name, hidden_states, None, None, need_gather_q_kv, output)
+        self.dsa_attn.impl.forward(self.dsa_attn.layer_name, hidden_states, None, None, output)
         return
 
     kv_cache = _build_kv_cache(self, forward_context)
 
     self.dsa_attn.impl.forward(
-        self.dsa_attn.layer_name, hidden_states, kv_cache, attn_metadata, need_gather_q_kv, output
+        self.dsa_attn.layer_name, hidden_states, kv_cache, attn_metadata, output
     )
     return
 
 
 def dsa_forward_fake(
     hidden_states: torch.Tensor,
-    need_gather_q_kv: bool,
     output: torch.Tensor,
     layer_name: str,
 ) -> None:

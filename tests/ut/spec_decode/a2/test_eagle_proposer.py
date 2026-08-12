@@ -802,15 +802,21 @@ class TestEagleProposerMaybePadAndGather:
         positions = torch.tensor([10, 11, 12], device=self.device, dtype=torch.int64)
         hidden_states = None if hidden_states_is_none else last_hidden_states + 1000
 
-        def fake_all_gather_and_unpad(input_tensor, label):
-            assert label is True
+        def fake_all_gather(input_tensor, dim, world_size, group_name):
+            assert dim == 0
             return torch.cat((input_tensor, input_tensor + 100), dim=0)
 
-        with patch(
-            "torch.ops.vllm.maybe_all_gather_and_maybe_unpad",
-            side_effect=fake_all_gather_and_unpad,
-            create=True,
-        ) as mock_all_gather:
+        with (
+            patch(
+                "vllm_ascend.spec_decode.llm_base_proposer.get_tp_group",
+                return_value=MagicMock(world_size=2, unique_name="tp_group"),
+            ),
+            patch(
+                "torch.ops.vllm.all_gather",
+                side_effect=fake_all_gather,
+                create=True,
+            ) as mock_all_gather,
+        ):
             gathered_last_hidden_states, gathered_positions, gathered_hidden_states = (
                 proposer.maybe_all_gather_and_unpad(last_hidden_states, positions, hidden_states)
             )
@@ -849,6 +855,7 @@ class TestEagleProposerMaybePadAndGather:
         import vllm_ascend.spec_decode.llm_base_proposer
 
         assert hasattr(vllm_ascend.spec_decode.llm_base_proposer, "AscendSpecDecodeBaseProposer")
+        assert hasattr(vllm_ascend.spec_decode.llm_base_proposer, "get_tp_group")
         RunnerCls = vllm_ascend.spec_decode.llm_base_proposer.AscendSpecDecodeBaseProposer
 
         assert hasattr(RunnerCls, "maybe_pad_and_reduce")

@@ -20,6 +20,7 @@ from torch._inductor.pattern_matcher import PatternMatcherPass
 from vllm.compilation.passes.vllm_inductor_pass import VllmInductorPass
 from vllm.config import VllmConfig
 from vllm.config.compilation import Range
+from vllm.distributed import get_tp_group
 from vllm.logger import logger
 
 from vllm_ascend.compilation.passes.base_pattern import BasePattern
@@ -152,6 +153,12 @@ class AddRMSNormQuantPatternWithBias(BasePattern):
 class AddRMSNormQuantSPPattern(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -182,7 +189,7 @@ class AddRMSNormQuantSPPattern(BasePattern):
             )
             out0 = output[0]
             out1 = output[2]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.vllm.quantize(out0, scale, scale_reciprocal, offset)
             return quantized_output, out1
 
@@ -205,7 +212,7 @@ class AddRMSNormQuantSPPattern(BasePattern):
             )
             quantized_output = output[0]
             out1 = output[2]
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(quantized_output, True)
+            quantized_output = torch.ops.vllm.all_gather(quantized_output, 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, out1
 
         return replacement
@@ -214,6 +221,12 @@ class AddRMSNormQuantSPPattern(BasePattern):
 class AddRMSNormQuantSPPatternWithBias(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -246,7 +259,7 @@ class AddRMSNormQuantSPPatternWithBias(BasePattern):
             )
             out0 = output[0]
             out1 = output[2]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.vllm.quantize(out0, scale, scale_reciprocal, offset)
             return quantized_output, out1
 
@@ -270,7 +283,7 @@ class AddRMSNormQuantSPPatternWithBias(BasePattern):
             )
             quantized_output = output[0]
             out1 = output[2]
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(quantized_output, True)
+            quantized_output = torch.ops.vllm.all_gather(quantized_output, 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, out1
 
         return replacement
@@ -378,6 +391,12 @@ class AddRMSNormDynamicQuantPatternWithBias(BasePattern):
 class AddRMSNormDynamicQuantSPPattern(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -396,7 +415,7 @@ class AddRMSNormDynamicQuantSPPattern(BasePattern):
             output = torch.ops.npu.npu_add_rms_norm(rms_norm_input, residual, rms_norm_weight, self.eps)
             out0 = output[0]
             out1 = output[2]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.npu.npu_dynamic_quant(out0)
             return quantized_output[0], quantized_output[1], out1
 
@@ -411,8 +430,8 @@ class AddRMSNormDynamicQuantSPPattern(BasePattern):
                 rms_norm_input, residual, rms_norm_weight, epsilon=self.eps, output_mask=[True, False]
             )
             out3 = output[3]
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(output[0], True)
-            out3 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out3, True)
+            quantized_output = torch.ops.vllm.all_gather(output[0], 0, self.tp_world_size, self.tp_group_name)
+            out3 = torch.ops.vllm.all_gather(out3, 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, out3, output[2]
 
         return replacement
@@ -421,6 +440,12 @@ class AddRMSNormDynamicQuantSPPattern(BasePattern):
 class AddRMSNormDynamicQuantSPPatternWithBias(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -447,7 +472,7 @@ class AddRMSNormDynamicQuantSPPatternWithBias(BasePattern):
             )
             out0 = output[0]
             out1 = output[2]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.npu.npu_dynamic_quant(out0)
             return quantized_output[0], quantized_output[1], out1
 
@@ -467,8 +492,8 @@ class AddRMSNormDynamicQuantSPPatternWithBias(BasePattern):
                 rms_norm_input, residual, rms_norm_weight, epsilon=self.eps, output_mask=[True, False], beta=bias
             )
             out3 = output[3]
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(output[0], True)
-            out3 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out3, True)
+            quantized_output = torch.ops.vllm.all_gather(output[0], 0, self.tp_world_size, self.tp_group_name)
+            out3 = torch.ops.vllm.all_gather(out3, 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, out3, output[2]
 
         return replacement
@@ -524,6 +549,12 @@ class AddRMSNormDynamicMXQuantPattern(BasePattern):
 class AddRMSNormDynamicMXQuantSPPattern(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -542,7 +573,7 @@ class AddRMSNormDynamicMXQuantSPPattern(BasePattern):
             output = torch.ops.npu.npu_add_rms_norm(rms_norm_input, residual, rms_norm_weight, self.eps)
             out0 = output[0]
             out1 = output[2]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.npu.npu_dynamic_mx_quant(out0, dst_type=torch.float8_e4m3fn)
             return quantized_output[0], quantized_output[1], out1
 
@@ -561,8 +592,8 @@ class AddRMSNormDynamicMXQuantSPPattern(BasePattern):
                 dst_type=torch.float8_e4m3fn,
             )
             mxscale = output[2]
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(output[0], True)
-            mxscale = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(mxscale, True)
+            quantized_output = torch.ops.vllm.all_gather(output[0], 0, self.tp_world_size, self.tp_group_name)
+            mxscale = torch.ops.vllm.all_gather(mxscale, 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, mxscale, output[1]
 
         return replacement
@@ -611,6 +642,12 @@ class RMSNormDynamicMXQuantPattern(BasePattern):
 class RMSNormDynamicMXQuantSPPattern(BasePattern):
     def __init__(self, vllm_config: VllmConfig, eps: float = 1e-6):
         super().__init__(vllm_config, eps)
+        # TP group info is captured at pattern definition time (patterns are
+        # registered after distributed init) and baked into the traced
+        # pattern as constants.
+        tp_group = get_tp_group()
+        self.tp_world_size = tp_group.world_size
+        self.tp_group_name = tp_group.unique_name
 
     def get_inputs(self):
         """
@@ -627,7 +664,7 @@ class RMSNormDynamicMXQuantSPPattern(BasePattern):
             """
             output = torch.ops.npu.npu_rms_norm(rms_norm_input, rms_norm_weight, self.eps)
             out0 = output[0]
-            out0 = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(out0, True)
+            out0 = torch.ops.vllm.all_gather(out0, 0, self.tp_world_size, self.tp_group_name)
             quantized_output = torch.ops.npu.npu_dynamic_mx_quant(out0, dst_type=torch.float8_e4m3fn)
             return quantized_output[0], quantized_output[1]
 
@@ -644,8 +681,8 @@ class RMSNormDynamicMXQuantSPPattern(BasePattern):
                 epsilon=self.eps,
                 dst_type=torch.float8_e4m3fn,
             )
-            quantized_output = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(output[0], True)
-            mxscale = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(output[1], True)
+            quantized_output = torch.ops.vllm.all_gather(output[0], 0, self.tp_world_size, self.tp_group_name)
+            mxscale = torch.ops.vllm.all_gather(output[1], 0, self.tp_world_size, self.tp_group_name)
             return quantized_output, mxscale
 
         return replacement

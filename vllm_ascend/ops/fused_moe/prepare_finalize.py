@@ -391,13 +391,13 @@ class PrepareAndFinalizeWithAllGather(PrepareAndFinalize):
                 round_mode="round",
             )
 
-        hidden_states = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(hidden_states, True, True)
-        router_logits = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(router_logits, True, True)
+        hidden_states = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(hidden_states)
+        router_logits = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(router_logits)
 
         self.num_tokens = hidden_states.shape[0]
 
         if pertoken_scale is not None:
-            pertoken_scale = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(pertoken_scale, True, True)
+            pertoken_scale = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(pertoken_scale)
 
         if self.moe_config.pcp_size > 1:
             max_tokens_across_pcp = _EXTRA_CTX.max_tokens_across_pcp
@@ -526,7 +526,7 @@ class PrepareAndFinalizeWithAllGather(PrepareAndFinalize):
             hidden_states = get_pcp_group().reduce_scatter(hidden_states, dim=0)
             hidden_states = hidden_states[: self.num_tokens_pcp]
 
-        hidden_states = torch.ops.vllm.maybe_pad_and_reduce(hidden_states, True)
+        hidden_states = torch.ops.vllm.maybe_pad_and_reduce(hidden_states)
 
         return hidden_states
 

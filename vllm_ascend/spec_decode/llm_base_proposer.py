@@ -2045,12 +2045,15 @@ class AscendSpecDecodeBaseProposer(SpecDecodeBaseProposer):
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
         if self.method == "mtp":
             if self.enable_shared_expert_dp:
-                last_hidden_states = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(
-                    last_hidden_states.contiguous(), True
+                tp_group = get_tp_group()
+                last_hidden_states = torch.ops.vllm.all_gather(
+                    last_hidden_states.contiguous(), 0, tp_group.world_size, tp_group.unique_name
                 )
                 # in mm model, positions not need allgather, because it not reduced before(see maybe_pad_and_reduce())
                 if not self.is_multimodal_model:
-                    positions = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(positions.contiguous(), True)
+                    positions = torch.ops.vllm.all_gather(
+                        positions.contiguous(), 0, tp_group.world_size, tp_group.unique_name
+                    )
                 if hidden_states is not None:
                     hidden_states = last_hidden_states
         return last_hidden_states, positions, hidden_states

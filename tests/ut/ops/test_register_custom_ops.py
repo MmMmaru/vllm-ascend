@@ -44,9 +44,7 @@ def _patch_sp_ep_context(monkeypatch):
 def test_sp_ep_all_gather_pads_and_unpads_local_chunks(monkeypatch):
     _patch_sp_ep_context(monkeypatch)
 
-    result = custom_ops._maybe_all_gather_and_maybe_unpad_impl(
-        torch.empty(1, 4), True, True
-    )
+    result = custom_ops._maybe_all_gather_and_maybe_unpad_impl(torch.empty(1, 4))
 
     assert result.shape == (8, 4)
     assert torch.equal(
@@ -58,7 +56,7 @@ def test_sp_ep_all_gather_pads_and_unpads_local_chunks(monkeypatch):
 def test_sp_ep_reduce_scatter_pads_local_chunks(monkeypatch):
     _patch_sp_ep_context(monkeypatch)
 
-    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4), True)
+    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4))
 
     assert result.shape == (3, 4)
 
@@ -67,7 +65,7 @@ def test_sp_ep_reduce_scatter_unpads_local_chunk(monkeypatch):
     _patch_sp_ep_context(monkeypatch)
     monkeypatch.setattr(custom_ops, "get_ep_group", _EpGroupRank0)
 
-    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4), True)
+    result = custom_ops._maybe_pad_and_reduce_impl(torch.arange(32).view(8, 4))
 
     assert result.shape == (1, 4)
 
@@ -75,10 +73,8 @@ def test_sp_ep_reduce_scatter_unpads_local_chunk(monkeypatch):
 def test_sp_ep_fake_shapes_follow_uneven_local_chunks(monkeypatch):
     _patch_sp_ep_context(monkeypatch)
 
-    gathered = custom_ops._maybe_all_gather_and_maybe_unpad_fake(
-        torch.empty(1, 4), True, True
-    )
-    reduced = custom_ops._maybe_pad_and_reduce_fake(torch.empty(8, 4), True)
+    gathered = custom_ops._maybe_all_gather_and_maybe_unpad_fake(torch.empty(1, 4))
+    reduced = custom_ops._maybe_pad_and_reduce_fake(torch.empty(8, 4))
 
     assert gathered.shape == (8, 4)
     assert reduced.shape == (3, 4)

@@ -1,28 +1,17 @@
 import torch
 import torch_npu
-from vllm.config import get_current_vllm_config
 from vllm.distributed import (
     get_dp_group,
     get_ep_group,
-    get_tp_group,
-    tensor_model_parallel_all_gather,
     tensor_model_parallel_all_reduce,
-    tensor_model_parallel_reduce_scatter,
 )
 from vllm.forward_context import get_forward_context
 from vllm.utils.torch_utils import direct_register_custom_op
 
-from vllm_ascend.ascend_forward_context import _EXTRA_CTX, MoECommType
+from vllm_ascend.ascend_forward_context import _EXTRA_CTX
 from vllm_ascend.ops.rotary_embedding import rope_forward_oot
 from vllm_ascend.ops.triton.muls_add import muls_add_triton
 from vllm_ascend.utils import is_vl_model
-
-
-def _sequence_parallel_enabled() -> bool: # TODO1: 删除辅助函数
-    try:
-        return get_current_vllm_config().parallel_config.use_sequence_parallel_moe
-    except AssertionError:
-        return False 
 
 
 def _get_ep_local_sizes(dp_metadata, ep_group) -> list[int] | None:
@@ -51,63 +40,42 @@ def _pad_to_ep_local_size(x: torch.Tensor, max_local_size: int) -> torch.Tensor:
     return padded
 
 
-def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor: # TODO1: 做最小化更改，
-    """
-    
-    """
-    try:
-        forward_context = get_forward_context()
-    except AssertionError:
-        return x
-
-    if not label:
-        return x
-
-    if is_ep_comm:
-        dp_metadata = forward_context.dp_metadata
-        ep_group = get_ep_group()
-        local_sizes = _get_ep_local_sizes(dp_metadata, ep_group)
+def _maybe_all_gather_and_maybe_unpad_impl(x: torch.Tensor) -> torch.Tensor:
+    """仅用于 EP 通信场景：EP all_gather + 按 DP token 分布 unpad。"""
+    forward_context = get_forward_context()
+    dp_metadata = forward_context.dp_metadata
+    ep_group = get_ep_group()
+    local_sizes = _get_ep_local_sizes(dp_metadata, ep_group)
+    if local_sizes is not None:
+        max_local_size = max(local_sizes)
+        # all_gather 要求各 rank 输入等长：先 pad 到 max_local_size，
+        # gather 后再按各 rank 真实的 local_sizes 截回。
+        x = _pad_to_ep_local_size(x, max_local_size)
+    # need to unpad from ep size
+    x = ep_group.all_gather(x, 0)
+    if dp_metadata is not None:
         if local_sizes is not None:
-            max_local_size = max(local_sizes)
-            x = _pad_to_ep_local_size(x, max_local_size) # TODO1：pad逻辑为什么在这里？
-        # need to unpad from ep size
-        x = ep_group.all_gather(x, 0)
-        if dp_metadata is not None:
-            if local_sizes is not None:
-                x = x.view(len(local_sizes), max(local_sizes), *x.shape[1:])
-                x = torch.cat([x[idx, :size] for idx, size in enumerate(local_sizes)], dim=0)
-            else:
-                num_tokens_across_dp_cpu = dp_metadata.num_tokens_across_dp_cpu
-                result = torch.empty((num_tokens_across_dp_cpu.sum(), *x.shape[1:]), device=x.device, dtype=x.dtype)
-                dp_size = get_dp_group().world_size
-                x = x.view(dp_size, _EXTRA_CTX.padded_length, *x.shape[1:])
-                offset = 0
-                for idx in range(dp_size):
-                    num_tokens_dp = int(num_tokens_across_dp_cpu[idx])
-                    result[offset : offset + num_tokens_dp] = x[idx, :num_tokens_dp]
-                    offset += num_tokens_dp
-                x = result
-    elif _sequence_parallel_enabled(): # 此处逻辑是干嘛的？会有SP但是不是EP的情况吗？上游设置是 EP, TP, backend
-        x = tensor_model_parallel_all_gather(x, 0)
+            x = x.view(len(local_sizes), max(local_sizes), *x.shape[1:])
+            x = torch.cat([x[idx, :size] for idx, size in enumerate(local_sizes)], dim=0)
+        else:
+            num_tokens_across_dp_cpu = dp_metadata.num_tokens_across_dp_cpu
+            result = torch.empty((num_tokens_across_dp_cpu.sum(), *x.shape[1:]), device=x.device, dtype=x.dtype)
+            dp_size = get_dp_group().world_size
+            x = x.view(dp_size, _EXTRA_CTX.padded_length, *x.shape[1:])
+            offset = 0
+            for idx in range(dp_size):
+                num_tokens_dp = int(num_tokens_across_dp_cpu[idx])
+                result[offset : offset + num_tokens_dp] = x[idx, :num_tokens_dp]
+                offset += num_tokens_dp
+            x = result
 
     return x
 
 
-def _maybe_pad_and_reduce_impl(x: torch.Tensor, is_ep_comm: bool = False) -> torch.Tensor:
-    try:
-        forward_context = get_forward_context()
-    except AssertionError:
-        return tensor_model_parallel_all_reduce(x)
+def _maybe_pad_and_reduce_impl(x: torch.Tensor) -> torch.Tensor:
+    """仅用于 EP 通信场景：按 DP token 分布 pad 后做 EP reduce_scatter。"""
+    forward_context = get_forward_context()
 
-    if not is_ep_comm and (
-        not _sequence_parallel_enabled() or (_EXTRA_CTX.is_draft_model and is_vl_model())
-    ):
-        return tensor_model_parallel_all_reduce(x)
-    if not is_ep_comm:
-        padding = (-x.shape[0]) % get_tp_group().world_size
-        if padding:
-            x = torch.nn.functional.pad(x, (0, 0) * (x.ndim - 1) + (0, padding))
-        return tensor_model_parallel_reduce_scatter(x, 0)
     if _EXTRA_CTX.is_draft_model and is_vl_model():
         return tensor_model_parallel_all_reduce(x)
 
@@ -142,61 +110,34 @@ def _maybe_pad_and_reduce_impl(x: torch.Tensor, is_ep_comm: bool = False) -> tor
     return ep_group.reduce_scatter(padded_x.view(-1, *x.shape[1:]), 0)
 
 
-def _maybe_all_gather_and_maybe_unpad_fake(x: torch.Tensor, label: bool, is_ep_comm: bool = False) -> torch.Tensor:
-    if label and is_ep_comm:
-        try:
-            forward_context = get_forward_context()
-            ep_group = get_ep_group()
-            local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
-        except AssertionError:
-            local_sizes = None
-        if local_sizes is not None:
-            return torch.empty(
-                (sum(local_sizes), *x.shape[1:]), device=x.device, dtype=x.dtype
-            )
-
-    if label and (is_ep_comm or _sequence_parallel_enabled()):
-        group_size = get_ep_group().world_size if is_ep_comm else get_tp_group().world_size
+def _maybe_all_gather_and_maybe_unpad_fake(x: torch.Tensor) -> torch.Tensor:
+    forward_context = get_forward_context()
+    ep_group = get_ep_group()
+    local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
+    if local_sizes is not None:
         return torch.empty(
-            (x.shape[0] * group_size, *x.shape[1:]), device=x.device, dtype=x.dtype
+            (sum(local_sizes), *x.shape[1:]), device=x.device, dtype=x.dtype
         )
 
-    return x
+    return torch.empty(
+        (x.shape[0] * ep_group.world_size, *x.shape[1:]), device=x.device, dtype=x.dtype
+    )
 
 
-def _maybe_pad_and_reduce_fake(x: torch.Tensor, is_ep_comm: bool = False) -> torch.Tensor:
-    if is_ep_comm:
-        try:
-            forward_context = get_forward_context()
-            ep_group = get_ep_group()
-            local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
-        except AssertionError:
-            local_sizes = None
-        if local_sizes is not None:
-            return torch.empty(
-                (local_sizes[ep_group.rank_in_group], *x.shape[1:]),
-                device=x.device,
-                dtype=x.dtype,
-            )
-
-    if is_ep_comm or _sequence_parallel_enabled():
-        group_size = get_ep_group().world_size if is_ep_comm else get_tp_group().world_size
+def _maybe_pad_and_reduce_fake(x: torch.Tensor) -> torch.Tensor:
+    forward_context = get_forward_context()
+    ep_group = get_ep_group()
+    local_sizes = _get_ep_local_sizes(forward_context.dp_metadata, ep_group)
+    if local_sizes is not None:
         return torch.empty(
-            (x.shape[0] // group_size, *x.shape[1:]), device=x.device, dtype=x.dtype
+            (local_sizes[ep_group.rank_in_group], *x.shape[1:]),
+            device=x.device,
+            dtype=x.dtype,
         )
 
-    return x
-
-
-def _maybe_all_reduce_tensor_model_parallel_impl(final_hidden_states: torch.Tensor) -> torch.Tensor:
-    moe_comm_type = _EXTRA_CTX.moe_comm_type
-    if (
-        moe_comm_type in {MoECommType.ALLTOALL, MoECommType.MC2, MoECommType.FUSED_MC2}
-        or _sequence_parallel_enabled()
-    ):
-        return final_hidden_states
-    else:
-        return tensor_model_parallel_all_reduce(final_hidden_states)
+    return torch.empty(
+        (x.shape[0] // ep_group.world_size, *x.shape[1:]), device=x.device, dtype=x.dtype
+    )
 
 
 # TODO(Angazenn): The reason why we use a custom op to encapsulate npu_quantize
@@ -249,14 +190,6 @@ direct_register_custom_op(
     op_name="maybe_pad_and_reduce",
     op_func=_maybe_pad_and_reduce_impl,
     fake_impl=_maybe_pad_and_reduce_fake,
-    mutates_args=[],
-    dispatch_key="PrivateUse1",
-)
-
-direct_register_custom_op(
-    op_name="maybe_all_reduce_tensor_model_parallel",
-    op_func=_maybe_all_reduce_tensor_model_parallel_impl,
-    fake_impl=lambda x: x,
     mutates_args=[],
     dispatch_key="PrivateUse1",
 )

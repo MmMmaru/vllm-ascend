@@ -21,6 +21,7 @@ import os
 import torch
 import torch_npu
 from vllm.config import get_current_vllm_config
+from vllm.distributed import get_tp_group
 from vllm.forward_context import is_forward_context_available
 from vllm.model_executor.layers.rotary_embedding import (
     DeepseekScalingRotaryEmbedding,
@@ -244,7 +245,10 @@ class AscendRotaryEmbedding(RotaryEmbedding):
             is_neox_style = is_neox_style_override
         is_draft_model = _EXTRA_CTX.is_draft_model if is_forward_context_available() else False
         if is_draft_model and self.use_mtp and enable_sp():
-            positions = torch.ops.vllm.maybe_all_gather_and_maybe_unpad(positions.contiguous(), True)
+            tp_group = get_tp_group()
+            positions = torch.ops.vllm.all_gather(
+                positions.contiguous(), 0, tp_group.world_size, tp_group.unique_name
+            )
         return torch.ops.vllm.npu_rotary_embedding(
             positions, query, key, self.cos_sin_cache, self.head_size, self.rotary_dim, is_neox_style
         )
